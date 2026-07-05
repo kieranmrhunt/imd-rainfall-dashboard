@@ -10,6 +10,9 @@ This folder contains a local dashboard built from the India Meteorological Depar
 - `data/annual_summary.csv` - all-India annual and JJAS summary metrics.
 - `data/monthly_by_year.csv` - area-weighted all-India monthly totals by year.
 - `data/manifest.json` - source, grid, baseline, and generation metadata.
+- `assets/india_adm0_simplified.*` - India boundary used for the map outline.
+- `assets/india_adm1_simplified.*` - state and union territory boundaries used
+  for the state selector and map overlay.
 - `raw/rainfall_YYYY.grd` - downloaded IMD binary rainfall files for 1901-2025 when
   the refresh script is run locally. The raw archive is not committed to GitHub.
 - `scripts/download_imd_rainfall.py` - resumable downloader with byte-count checks.
@@ -26,20 +29,29 @@ https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_NetCDF.html
 The dashboard uses the binary archive because it can be read directly with NumPy
 without additional NetCDF dependencies.
 
+Boundary data:
+https://www.geoboundaries.org/
+
 ## Method
 
 The IMD grid has 135 longitude points and 129 latitude points from 6.5N, 66.5E
 to 38.5N, 100.0E. Rainfall is in mm and missing cells use `-999.0`.
 
-All-India daily means are area-weighted using cosine-latitude weights over valid
-IMD grid cells. Annual and JJAS totals are daily sums of those area-weighted
-means. Anomalies use the 1991-2020 baseline.
+Daily means are area-weighted using cosine-latitude weights over valid IMD grid
+cells. State and union territory products use geoBoundaries ADM1 polygons to
+select grid-cell centres within each region. Annual and JJAS totals are daily
+sums of those area-weighted means.
+
+Normals and anomalies use the 1991-2020 baseline. Wettest and driest days are
+ranked by anomaly against the selected region's baseline mean daily rainfall for
+that calendar month. Wettest and driest months are ranked by anomaly against the
+selected region's baseline monthly mean.
 
 ## Refresh
 
 ```powershell
 python scripts/download_imd_rainfall.py --start 1901 --end 2025 --out-dir raw
-python scripts/process_imd_rainfall.py --raw-dir raw --data-dir data --boundary assets/india_adm0_simplified.geojson
+python scripts/process_imd_rainfall.py --raw-dir raw --data-dir data --boundary assets/india_adm0_simplified.geojson --state-boundary assets/india_adm1_simplified.geojson
 ```
 
 ## Related Tooling

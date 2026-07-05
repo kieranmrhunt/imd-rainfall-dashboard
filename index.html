@@ -70,7 +70,7 @@ h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spac
 }
 .control-inner{
   display:grid;
-  grid-template-columns:1fr auto auto auto;
+  grid-template-columns:minmax(220px,1fr) auto minmax(210px,.65fr) minmax(170px,.45fr) minmax(145px,.35fr) minmax(185px,.45fr);
   gap:12px;
   align-items:end;
   padding:12px 0;
@@ -81,7 +81,8 @@ select,input[type=range]{
   color:var(--ink);
 }
 select{
-  min-width:170px;
+  min-width:0;
+  width:100%;
   border:1px solid var(--line2);
   border-radius:4px;
   background:var(--surface);
@@ -161,6 +162,8 @@ svg{display:block;width:100%;height:260px}
 table{width:100%;border-collapse:collapse;font-size:13px}
 th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left}
 th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.positive{color:#146f7a;font-weight:750}
+.negative{color:#b54a35;font-weight:750}
 .source{
   margin-top:14px;
   display:grid;
@@ -210,6 +213,9 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       <input id="yearSlider" type="range" min="1901" max="2025" value="2025" step="1">
     </label>
     <div id="yearValue" class="year-readout">2025</div>
+    <label>Region
+      <select id="regionSelect"></select>
+    </label>
     <label>Map
       <select id="mapMode">
         <option value="annual">Annual total</option>
@@ -224,6 +230,14 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       <select id="trendMode">
         <option value="annual">Annual</option>
         <option value="jjas">JJAS</option>
+      </select>
+    </label>
+    <label>Ranking
+      <select id="extremeMode">
+        <option value="wettestDays">Wettest days</option>
+        <option value="driestDays">Driest days</option>
+        <option value="wettestMonths">Wettest months</option>
+        <option value="driestMonths">Driest months</option>
       </select>
     </label>
   </div>
@@ -256,18 +270,18 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       <div class="panel">
         <div class="panel-head">
           <div>
-            <h2>All-India Time Series</h2>
+            <h2>Rainfall Time Series</h2>
             <p class="hint" id="trendHint"></p>
           </div>
         </div>
-        <svg id="trendSvg" role="img" aria-label="All India rainfall trend"></svg>
+        <svg id="trendSvg" role="img" aria-label="Rainfall trend"></svg>
       </div>
 
       <div class="panel">
         <div class="panel-head">
           <div>
             <h2>Daily Accumulation</h2>
-            <p class="hint">Area-weighted all-India mean rainfall, accumulated through the selected year.</p>
+            <p class="hint" id="dailyHint"></p>
           </div>
         </div>
         <svg id="dailySvg" role="img" aria-label="Daily cumulative rainfall"></svg>
@@ -277,41 +291,44 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
 
   <section class="grid" style="margin-top:14px">
     <div class="panel">
-      <div class="panel-head">
-        <div>
-          <h2>Monthly Profile</h2>
-          <p class="hint">Selected year against the baseline monthly climatology.</p>
+        <div class="panel-head">
+          <div>
+            <h2>Monthly Profile</h2>
+            <p class="hint" id="monthlyHint"></p>
+          </div>
         </div>
-      </div>
       <svg id="monthlySvg" role="img" aria-label="Monthly rainfall profile"></svg>
     </div>
     <div class="panel">
       <div class="panel-head">
         <div>
-          <h2>Wettest All-India Days</h2>
-          <p class="hint">Ranked by national daily mean rainfall.</p>
+          <h2 id="extremeTitle">Wet / Dry Rankings</h2>
+          <p class="hint" id="extremeHint"></p>
         </div>
       </div>
       <table>
-        <thead><tr><th>Date</th><th>Mean mm</th><th>Year total</th></tr></thead>
-        <tbody id="wettestBody"></tbody>
+        <thead><tr><th id="periodHead">Period</th><th>Rain mm</th><th>Normal mm</th><th>Anomaly</th><th>% normal</th></tr></thead>
+        <tbody id="extremeBody"></tbody>
       </table>
     </div>
   </section>
 
   <section class="panel source">
     <div><strong>Source:</strong> India Meteorological Department, 0.25 x 0.25 degree daily gridded rainfall binary archive. Grid is 135 x 129 points from 6.5N, 66.5E to 38.5N, 100.0E; units are mm.</div>
+    <div><strong>Boundaries:</strong> geoBoundaries India ADM0 and ADM1 geometries, simplified for browser rendering.</div>
     <div><strong>Citation:</strong> Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.</div>
-    <div><strong>Method:</strong> all-India totals are area-weighted with cosine-latitude weights over valid IMD grid cells. Normals and anomalies use the dashboard baseline shown above.</div>
+    <div><strong>Method:</strong> region totals are area-weighted with cosine-latitude weights over valid IMD grid cells. State and union territory boundaries use geoBoundaries ADM1 geometries. Day rankings compare against the selected region's baseline mean daily rainfall for that calendar month; month rankings compare against the baseline monthly mean.</div>
   </section>
 </main>
 
 <script src="data/dashboard_data.js"></script>
 <script src="assets/india_adm0_simplified.js"></script>
+<script src="assets/india_adm1_simplified.js"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
   const boundary = window.INDIA_BOUNDARY;
+  const stateBoundary = window.INDIA_STATE_BOUNDARIES;
   const error = document.getElementById("error");
   if (!data || !boundary) {
     error.hidden = false;
@@ -320,12 +337,14 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
   }
 
   const years = data.years;
-  const rows = data.series.annual;
-  const rowByYear = new Map(rows.map(row => [row.year, row]));
+  const regions = data.regions?.list || [{id:"all-india", name:"All India", iso:"IND", cellCount:data.meta.grid.validCellCount}];
+  const regionById = new Map(regions.map(region => [region.id, region]));
   const slider = document.getElementById("yearSlider");
   const yearValue = document.getElementById("yearValue");
+  const regionSelect = document.getElementById("regionSelect");
   const mapMode = document.getElementById("mapMode");
   const trendMode = document.getElementById("trendMode");
+  const extremeMode = document.getElementById("extremeMode");
   const kpis = document.getElementById("kpis");
   const canvas = document.getElementById("mapCanvas");
   const tooltip = document.getElementById("tooltip");
@@ -338,15 +357,32 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
   slider.max = years[years.length - 1];
   slider.value = years[years.length - 1];
   yearValue.textContent = slider.value;
+  const allRegion = regions.find(region => region.id === "all-india") || regions[0];
+  const stateRegions = regions.filter(region => region.id !== "all-india");
+  regionSelect.innerHTML = [
+    `<option value="${allRegion.id}">${escapeHtml(allRegion.name)}</option>`,
+    ...stateRegions.map(region => `<option value="${region.id}">${escapeHtml(region.name)}</option>`)
+  ].join("");
 
   document.getElementById("metaRow").innerHTML = [
     `${data.meta.downloadedYears[0]}-${data.meta.downloadedYears[1]}`,
     `${data.meta.yearCount} years`,
     `${data.meta.grid.validCellCount.toLocaleString()} valid grid cells`,
+    `${Math.max(0, regions.length - 1)} state/UT filters`,
     `${data.meta.grid.resolutionDegrees} degree grid`,
     `Normal: ${data.meta.baseline}`,
     `Generated ${data.meta.generated}`
   ].map(text => `<span class="pill">${text}</span>`).join("");
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+      "&":"&amp;",
+      "<":"&lt;",
+      ">":"&gt;",
+      "\"":"&quot;",
+      "'":"&#39;"
+    }[char]));
+  }
 
   function baselineRange() {
     const match = String(data.meta.baseline).match(/(\d{4})-(\d{4})/);
@@ -355,16 +391,43 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
   }
 
   const [baseStart, baseEnd] = baselineRange();
-  const baselineRows = rows.filter(row => row.year >= baseStart && row.year <= baseEnd);
-  const baseAnnual = mean(baselineRows.map(row => row.annual_mm));
-  const baseJjas = mean(baselineRows.map(row => row.jjas_mm));
+
+  function regionId() {
+    return regionSelect.value || "all-india";
+  }
+
+  function regionInfo(id = regionId()) {
+    return regionById.get(id) || allRegion;
+  }
+
+  function rowsForRegion(id = regionId()) {
+    return data.regions?.annual?.[id] || data.series.annual;
+  }
+
+  function rowForYear(year, id = regionId()) {
+    return rowsForRegion(id).find(row => row.year === year);
+  }
+
+  function baselineMean(metric, id = regionId()) {
+    const values = rowsForRegion(id)
+      .filter(row => row.year >= baseStart && row.year <= baseEnd)
+      .map(row => row[metric])
+      .filter(value => Number.isFinite(value));
+    return mean(values);
+  }
 
   function mean(values) {
-    return values.reduce((a, b) => a + b, 0) / values.length;
+    return values.length ? values.reduce((a, b) => a + b, 0) / values.length : NaN;
   }
 
   function fmt(value, digits = 0) {
+    if (!Number.isFinite(Number(value))) return "n/a";
     return Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: digits});
+  }
+
+  function signed(value, digits = 0) {
+    if (!Number.isFinite(Number(value))) return "n/a";
+    return `${value >= 0 ? "+" : ""}${fmt(value, digits)}`;
   }
 
   function decodeU16(key, b64, length) {
@@ -379,9 +442,21 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
   }
 
   function dailyForYear(year) {
-    const len = data.series.dailyLengths[String(year)];
-    const raw = decodeU16(`daily-${year}`, data.series.dailyMeanByYear[String(year)], len);
+    const id = regionId();
+    const len = data.regions?.dailyLengths?.[String(year)] || data.series.dailyLengths[String(year)];
+    const encoded = data.regions?.dailyMeanByYear?.[id]?.[String(year)] || data.series.dailyMeanByYear[String(year)];
+    const raw = decodeU16(`daily-${id}-${year}`, encoded, len);
     return Array.from(raw, v => v / 10);
+  }
+
+  function monthlyForYear(year) {
+    const id = regionId();
+    return data.regions?.monthlyByYear?.[id]?.[String(year)] || data.series.monthlyByYear[String(year)];
+  }
+
+  function monthlyClimatology() {
+    const id = regionId();
+    return data.regions?.monthlyClimatology?.[id] || data.series.monthlyClimatology;
   }
 
   function mapArray(kind, year) {
@@ -457,13 +532,32 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     return (lon, lat) => [ox + (lon - extent.minLon) * scale, oy + (extent.maxLat - lat) * scale, scale];
   }
 
-  function drawBoundary(project) {
+  function slugName(value) {
+    return String(value || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function featureRegionId(feature) {
+    const props = feature.properties || {};
+    return slugName(props.shapeName || props.name || props.NAME_1 || "");
+  }
+
+  function drawBoundary(project, geo, options = {}) {
+    if (!geo) return;
     ctx.save();
-    ctx.strokeStyle = "rgba(33,28,42,.68)";
-    ctx.lineWidth = 1.2;
-    const features = boundary.type === "FeatureCollection" ? boundary.features : [boundary];
+    ctx.strokeStyle = options.strokeStyle || "rgba(33,28,42,.68)";
+    ctx.lineWidth = options.lineWidth || 1.2;
+    ctx.globalAlpha = options.alpha ?? 1;
+    const features = geo.type === "FeatureCollection" ? geo.features : [geo];
     for (const feature of features) {
+      if (options.filter && !options.filter(feature)) continue;
       const geom = feature.geometry || feature;
+      if (!geom || !geom.coordinates) continue;
       const polygons = geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
       for (const poly of polygons) {
         for (const ring of poly) {
@@ -504,13 +598,23 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       ctx.fillRect(x - cell / 2, y - cell / 2, Math.max(cell, 1), Math.max(cell, 1));
       mapPixels.push({x, y, lon, lat, value: values[i]});
     }
-    drawBoundary(project);
+    drawBoundary(project, stateBoundary, {strokeStyle:"rgba(33,28,42,.24)", lineWidth:.55});
+    drawBoundary(project, boundary, {strokeStyle:"rgba(33,28,42,.72)", lineWidth:1.2});
+    if (regionId() !== "all-india") {
+      drawBoundary(project, stateBoundary, {
+        strokeStyle:"#c7375f",
+        lineWidth:2.4,
+        filter:feature => featureRegionId(feature) === regionId()
+      });
+    }
 
     document.getElementById("legendMin").textContent = scale.minLabel;
     document.getElementById("legendMax").textContent = scale.maxLabel;
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(s => s[1]).join(",")})`;
     const modeLabel = mapMode.options[mapMode.selectedIndex].text;
-    document.getElementById("mapHint").textContent = `${modeLabel}, ${slider.value}. Baseline: ${data.meta.baseline}.`;
+    const region = regionInfo();
+    const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
+    document.getElementById("mapHint").textContent = `${modeLabel}, ${slider.value}. ${regionHint} Baseline: ${data.meta.baseline}.`;
   }
 
   function linePath(points) {
@@ -548,9 +652,10 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     const height = 260;
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const mode = trendMode.value;
+    const rows = rowsForRegion();
     const values = rows.map(row => mode === "annual" ? row.annual_mm : row.jjas_mm);
     const selectedYear = Number(slider.value);
-    const selectedIndex = years.indexOf(selectedYear);
+    const selectedIndex = Math.max(0, rows.findIndex(row => row.year === selectedYear));
     const pad = {l:46, r:12, t:12, b:30};
     const plotW = width - pad.l - pad.r;
     const plotH = height - pad.t - pad.b;
@@ -562,14 +667,14 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     svg.appendChild(svgEl("path", {d:linePath(values.map((v, i) => [x(i), y(v)])), fill:"none", stroke:mode === "annual" ? "#1f8fa6" : "#477247", "stroke-width":"2.2"}));
     const dot = svgEl("circle", {cx:x(selectedIndex), cy:y(values[selectedIndex]), r:5, fill:"#c7375f", stroke:"#fff", "stroke-width":"2"});
     svg.appendChild(dot);
-    [years[0], 1950, 2000, years[years.length - 1]].forEach(year => {
-      const i = years.indexOf(year);
+    [rows[0].year, 1950, 2000, rows[rows.length - 1].year].forEach(year => {
+      const i = rows.findIndex(row => row.year === year);
       if (i < 0) return;
       const text = svgEl("text", {x:x(i), y:height - 8, fill:"#665f73", "font-size":"11", "text-anchor":"middle"});
       text.textContent = year;
       svg.appendChild(text);
     });
-    document.getElementById("trendHint").textContent = `${mode === "annual" ? "Annual" : "JJAS"} area-weighted all-India rainfall totals, mm.`;
+    document.getElementById("trendHint").textContent = `${mode === "annual" ? "Annual" : "JJAS"} area-weighted ${regionInfo().name} rainfall totals, mm.`;
   }
 
   function drawDaily() {
@@ -599,6 +704,7 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       text.textContent = label;
       svg.appendChild(text);
     });
+    document.getElementById("dailyHint").textContent = `Area-weighted ${regionInfo().name} mean rainfall, accumulated through ${year}.`;
   }
 
   function drawMonthly() {
@@ -609,8 +715,8 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     const height = 260;
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const year = Number(slider.value);
-    const monthly = data.series.monthlyByYear[String(year)];
-    const clim = data.series.monthlyClimatology;
+    const monthly = monthlyForYear(year);
+    const clim = monthlyClimatology();
     const pad = {l:46, r:12, t:12, b:34};
     const plotW = width - pad.l - pad.r;
     const plotH = height - pad.t - pad.b;
@@ -629,18 +735,22 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
       text.textContent = months[i];
       svg.appendChild(text);
     }
+    document.getElementById("monthlyHint").textContent = `${regionInfo().name}, ${year}, against the ${data.meta.baseline} monthly climatology.`;
   }
 
   function drawKpis() {
     const year = Number(slider.value);
-    const row = rowByYear.get(year);
+    const row = rowForYear(year);
+    const region = regionInfo();
+    const baseAnnual = baselineMean("annual_mm");
+    const baseJjas = baselineMean("jjas_mm");
     const annualAnom = row.annual_mm - baseAnnual;
     const jjasAnom = row.jjas_mm - baseJjas;
     const cards = [
-      ["Annual total", `${fmt(row.annual_mm, 0)} mm`, `${annualAnom >= 0 ? "+" : ""}${fmt(annualAnom, 0)} mm vs normal`],
-      ["JJAS total", `${fmt(row.jjas_mm, 0)} mm`, `${jjasAnom >= 0 ? "+" : ""}${fmt(jjasAnom, 0)} mm vs normal`],
+      ["Annual total", `${fmt(row.annual_mm, 0)} mm`, `${signed(annualAnom, 0)} mm vs normal`],
+      ["JJAS total", `${fmt(row.jjas_mm, 0)} mm`, `${signed(jjasAnom, 0)} mm vs normal`],
       ["Monsoon share", `${fmt(row.jjas_share, 1)}%`, "June to September share of annual total"],
-      ["Wet area", `${fmt(row.wet_area_fraction, 1)}%`, "Mean daily area with rainfall >= 1 mm"],
+      ["Valid cells", `${fmt(row.valid_cells || region.cellCount, 0)}`, "IMD grid cells in selected region"],
       ["Wet rank", `#${row.wet_rank}`, `Wettest day ${row.wettest_day}: ${fmt(row.wettest_day_mean_mm, 1)} mm`],
     ];
     kpis.innerHTML = cards.map(card => `
@@ -652,15 +762,41 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     `).join("");
   }
 
-  function drawWettestTable() {
-    const tbody = document.getElementById("wettestBody");
-    tbody.innerHTML = data.series.wettestAllIndiaDays.map(row => `
+  function drawExtremesTable() {
+    const id = regionId();
+    const mode = extremeMode.value;
+    const region = regionInfo(id);
+    const groups = data.regions?.extremes?.[id] || {};
+    const rows = groups[mode] || [];
+    const isMonth = mode.endsWith("Months");
+    const title = {
+      wettestDays:"Wettest Days",
+      driestDays:"Driest Days",
+      wettestMonths:"Wettest Months",
+      driestMonths:"Driest Months"
+    }[mode] || "Wet / Dry Rankings";
+    document.getElementById("extremeTitle").textContent = `${title}: ${region.name}`;
+    document.getElementById("periodHead").textContent = isMonth ? "Month" : "Date";
+    document.getElementById("extremeHint").textContent = `Ranked by anomaly against ${region.name}'s ${data.meta.baseline} ${isMonth ? "monthly mean" : "calendar-month daily mean"}.`;
+
+    const tbody = document.getElementById("extremeBody");
+    if (!rows.length) {
+      tbody.innerHTML = `<tr><td colspan="5">No ranking data available for ${escapeHtml(region.name)}.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = rows.map(row => {
+      const anomaly = Number(row.anomaly_mm);
+      const klass = anomaly >= 0 ? "positive" : "negative";
+      return `
       <tr>
-        <td>${row.wettest_day}</td>
-        <td>${fmt(row.wettest_day_mean_mm, 1)}</td>
-        <td>${fmt(row.annual_mm, 0)}</td>
+        <td>${escapeHtml(isMonth ? row.month : row.date)}</td>
+        <td>${fmt(row.rain_mm, 1)}</td>
+        <td>${fmt(row.normal_mm, 1)}</td>
+        <td class="${klass}">${signed(anomaly, 1)}</td>
+        <td>${isMonth ? fmt(row.percent_normal, 1) : ""}</td>
       </tr>
-    `).join("");
+    `;
+    }).join("");
   }
 
   function update() {
@@ -670,6 +806,7 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
     drawTrend();
     drawDaily();
     drawMonthly();
+    drawExtremesTable();
   }
 
   canvas.addEventListener("mousemove", event => {
@@ -697,11 +834,12 @@ th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppe
   });
   canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
   slider.addEventListener("input", update);
+  regionSelect.addEventListener("change", update);
   mapMode.addEventListener("change", update);
   trendMode.addEventListener("change", drawTrend);
+  extremeMode.addEventListener("change", drawExtremesTable);
   window.addEventListener("resize", () => { drawMap(); drawTrend(); drawDaily(); drawMonthly(); });
 
-  drawWettestTable();
   update();
 })();
 </script>

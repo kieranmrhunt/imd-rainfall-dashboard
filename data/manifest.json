@@ -18,7 +18,8 @@
     "validCellCount": 4964
   },
   "baseline": "1991-2020",
-  "generated": "2026-07-05 15:16 UTC",
+  "generated": "2026-07-05 15:41 UTC",
   "mapEncoding": "uint16 little-endian base64, units mm, 65535 missing",
-  "dailyEncoding": "uint16 little-endian base64, units tenths of mm"
+  "dailyEncoding": "uint16 little-endian base64, units tenths of mm",
+  "stateBoundarySource": "geoBoundaries IND ADM1 simplified"
 }
