@@ -46,7 +46,8 @@ are daily sums of those area-weighted means.
 Normals and anomalies use the 1991-2020 baseline. Wettest and driest days are
 ranked by anomaly against the selected region's baseline mean daily rainfall for
 that calendar month. Wettest and driest months are ranked by anomaly against the
-selected region's baseline monthly mean.
+selected region's baseline monthly mean. Percentage anomaly is calculated as
+`100 * (rainfall - normal) / normal`.
 
 The dashboard separates absolute totals, trend views, anomaly maps, and extremes.
 Monthly extremes can drive gridded monthly anomaly maps, so queries such as a

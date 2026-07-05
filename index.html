@@ -111,6 +111,9 @@ body[data-view="extremes"] .year-control,
 body[data-view="absolute"] .extreme-control,
 body[data-view="trend"] .extreme-control,
 body[data-view="anomaly"] .extreme-control,
+body[data-view="absolute"] .anomaly-control,
+body[data-view="trend"] .anomaly-control,
+body[data-view="extremes"] .anomaly-control,
 body[data-view="extremes"] .period-control{display:none}
 body:not([data-extreme-grain="days"]) .day-control{display:none}
 main{padding:18px 0 34px}
@@ -259,6 +262,12 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
           <option value="monthly">Month</option>
         </select>
       </label>
+      <label class="anomaly-control">Anomaly
+        <select id="anomalyUnit">
+          <option value="percent">Percentage</option>
+          <option value="mm">Millimetres</option>
+        </select>
+      </label>
       <label class="month-control">Month
         <select id="monthSelect"></select>
       </label>
@@ -276,7 +285,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       </label>
       <label class="extreme-control">Rank By
         <select id="extremeMetric">
-          <option value="anomaly">Anomaly</option>
+          <option value="percentAnomaly">% anomaly</option>
+          <option value="anomaly">mm anomaly</option>
           <option value="absolute">Absolute</option>
         </select>
       </label>
@@ -351,7 +361,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       </div>
     </div>
     <table>
-      <thead><tr><th id="periodHead">Period</th><th>Rain mm</th><th>Normal mm</th><th>Anomaly</th><th>% normal</th></tr></thead>
+      <thead><tr><th id="periodHead">Period</th><th>Rain mm</th><th>Normal mm</th><th>Anomaly</th><th>Anom %</th></tr></thead>
       <tbody id="extremeBody"></tbody>
     </table>
   </section>
@@ -360,13 +370,13 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     <div><strong>Source:</strong> India Meteorological Department, 0.25 x 0.25 degree daily gridded rainfall binary archive. Grid is 135 x 129 points from 6.5N, 66.5E to 38.5N, 100.0E; units are mm.</div>
     <div><strong>Boundaries:</strong> geoBoundaries India ADM0 and ADM1 geometries, simplified for browser rendering.</div>
     <div><strong>Citation:</strong> Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.</div>
-    <div><strong>Method:</strong> region totals are area-weighted with cosine-latitude weights over valid IMD grid cells. State and union territory boundaries use geoBoundaries ADM1 geometries. Day rankings compare against the selected region's baseline mean daily rainfall for that calendar month; month rankings compare against the baseline monthly mean.</div>
+    <div><strong>Method:</strong> region totals are area-weighted with cosine-latitude weights over valid IMD grid cells. State and union territory boundaries use geoBoundaries ADM1 geometries. Day rankings compare against the selected region's baseline mean daily rainfall for that calendar month; month rankings compare against the baseline monthly mean. Percentage anomaly is 100 x (rainfall - normal) / normal.</div>
   </section>
 </main>
 
-<script src="data/dashboard_data.js?v=20260705-mapfix2"></script>
-<script src="assets/india_adm0_simplified.js?v=20260705-mapfix2"></script>
-<script src="assets/india_adm1_simplified.js?v=20260705-mapfix2"></script>
+<script src="data/dashboard_data.js?v=20260705-pctanom"></script>
+<script src="assets/india_adm0_simplified.js?v=20260705-pctanom"></script>
+<script src="assets/india_adm1_simplified.js?v=20260705-pctanom"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
@@ -393,6 +403,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   const yearValue = document.getElementById("yearValue");
   const regionSelect = document.getElementById("regionSelect");
   const periodSelect = document.getElementById("periodSelect");
+  const anomalyUnit = document.getElementById("anomalyUnit");
   const monthSelect = document.getElementById("monthSelect");
   const extremeGrain = document.getElementById("extremeGrain");
   const extremeDirection = document.getElementById("extremeDirection");
@@ -489,6 +500,16 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return `${value >= 0 ? "+" : ""}${fmt(value, digits)}`;
   }
 
+  function pctAnomaly(value, normal) {
+    return Number.isFinite(value) && Number.isFinite(normal) && normal > 0 ? 100 * (value - normal) / normal : NaN;
+  }
+
+  function rankedByLabel(value) {
+    if (value === "absolute") return "absolute rainfall";
+    if (value === "percentAnomaly") return "% anomaly";
+    return "mm anomaly";
+  }
+
   function decodeU16(key, b64, length) {
     if (decoded.has(key)) return decoded.get(key);
     const bin = atob(b64);
@@ -575,7 +596,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
         period,
         year,
         month,
-        display: extremeMetric.value === "absolute" ? "absolute" : "anomaly",
+        display: extremeMetric.value === "absolute" ? "absolute" : extremeMetric.value,
         event: selectedExtremeRecord,
       };
     }
@@ -584,7 +605,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       period: periodSelect.value,
       year: selectedYear(),
       month: selectedMonth(),
-      display: view === "anomaly" ? "anomaly" : "absolute",
+      display: view === "anomaly" ? (anomalyUnit.value === "percent" ? "percentAnomaly" : "anomaly") : "absolute",
       event: null,
     };
   }
@@ -597,12 +618,17 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     for (let i = 0; i < pointCount; i += 1) {
       const val = selected[i] === 65535 ? NaN : selected[i];
       const norm = clim[i] === 65535 ? NaN : clim[i];
-      values[i] = context.display === "anomaly" && Number.isFinite(val) && Number.isFinite(norm) ? val - norm : val;
+      if (context.display === "percentAnomaly") values[i] = pctAnomaly(val, norm);
+      else values[i] = context.display === "anomaly" && Number.isFinite(val) && Number.isFinite(norm) ? val - norm : val;
     }
     return {values, context};
   }
 
   function colourStops(context) {
+    if (context.display === "percentAnomaly") {
+      const max = context.period === "monthly" ? 300 : 150;
+      return {min:-100, max, stops:[[0,"#8d4f22"],[0.34,"#f2e7cf"],[0.5,"#fffaf3"],[0.66,"#d8efe9"],[1,"#146f7a"]], minLabel:"-100%", maxLabel:`+${max}%`, unit:"%"};
+    }
     if (context.display === "anomaly") {
       const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : 600;
       return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.45,"#f2e7cf"],[0.5,"#fffaf3"],[0.55,"#d8efe9"],[1,"#146f7a"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
@@ -753,10 +779,11 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     document.getElementById("legendMin").textContent = scale.minLabel;
     document.getElementById("legendMax").textContent = scale.maxLabel;
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
-    const descriptor = `${context.display === "anomaly" ? "Anomaly" : "Total"}: ${periodDateLabel(context.year, context.period, context.month)}`;
+    const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
+    const descriptor = `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month)}`;
     const region = regionInfo();
     const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
-    document.getElementById("mapTitle").textContent = context.display === "anomaly" ? "Gridded Rainfall Anomaly" : "Gridded Rainfall Total";
+    document.getElementById("mapTitle").textContent = context.display === "absolute" ? "Gridded Rainfall Total" : context.display === "percentAnomaly" ? "Gridded Rainfall Percentage Anomaly" : "Gridded Rainfall Anomaly";
     if (context.view === "extremes" && context.event) {
       const grainText = context.event.grain === "days" ? `${context.event.date}; map shows ${monthNames[context.month - 1]} ${context.year}` : context.event.period;
       document.getElementById("mapHint").textContent = `${descriptor}. Selected extreme: ${grainText}. ${regionHint} Baseline: ${data.meta.baseline}.`;
@@ -900,11 +927,11 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     if (view === "extremes" && selectedExtremeRecord) {
       const row = selectedExtremeRecord;
       cardHtml([
-        ["Selected event", row.period, `${regionInfo().name}, ranked ${extremeDirection.value} by ${extremeMetric.value}`],
+        ["Selected event", row.period, `${regionInfo().name}, ranked ${extremeDirection.value} by ${rankedByLabel(extremeMetric.value)}`],
         ["Rainfall", `${fmt(row.rain_mm, 1)} mm`, row.grain === "days" ? "Daily regional mean" : "Monthly regional total"],
         ["Normal", `${fmt(row.normal_mm, 1)} mm`, `${data.meta.baseline} ${row.grain === "days" ? "calendar-month daily mean" : "monthly mean"}`],
         ["Anomaly", `${signed(row.anomaly_mm, 1)} mm`, row.anomaly_mm < 0 ? "Deficit against normal" : "Surplus against normal"],
-        ["Percent normal", `${fmt(row.percent_normal, 1)}%`, "Selected event rainfall as percent of normal"],
+        ["Anomaly %", `${signed(row.anomaly_pct, 1)}%`, "Departure from normal as a percentage"],
       ]);
       return;
     }
@@ -915,6 +942,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const value = periodValue(year, period, month);
     const normal = periodNormal(period, month);
     const anomaly = value - normal;
+    const anomalyPct = pctAnomaly(value, normal);
     const row = rowForYear(year);
     const region = regionInfo();
     if (currentView() === "anomaly") {
@@ -923,7 +951,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
         ["Total", `${fmt(value, 1)} mm`, `Area-weighted ${region.name}`],
         ["Normal", `${fmt(normal, 1)} mm`, `${data.meta.baseline} baseline`],
         ["Anomaly", `${signed(anomaly, 1)} mm`, anomaly < 0 ? "Deficit against normal" : "Surplus against normal"],
-        ["Percent normal", `${fmt(100 * value / normal, 1)}%`, "Selected period rainfall as percent of normal"],
+        ["Anomaly %", `${signed(anomalyPct, 1)}%`, "Departure from normal as a percentage"],
       ]);
       return;
     }
@@ -954,6 +982,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
           rain_mm:rain,
           normal_mm:normal,
           anomaly_mm:rain - normal,
+          anomaly_pct:pctAnomaly(rain, normal),
           percent_normal:normal > 0 ? 100 * rain / normal : NaN,
         });
       }
@@ -983,6 +1012,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
           rain_mm:rain,
           normal_mm:normal,
           anomaly_mm:rain - normal,
+          anomaly_pct:pctAnomaly(rain, normal),
           percent_normal:normal > 0 ? 100 * rain / normal : NaN,
         });
       }
@@ -996,7 +1026,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const grain = extremeGrain.value;
     const monthFilter = monthSelect.value === "all" ? null : Number(monthSelect.value);
     const dayFilter = daySelect.value === "all" ? null : Number(daySelect.value);
-    const metric = extremeMetric.value === "absolute" ? "rain_mm" : "anomaly_mm";
+    const metric = extremeMetric.value === "absolute" ? "rain_mm" : extremeMetric.value === "percentAnomaly" ? "anomaly_pct" : "anomaly_mm";
     const rows = (grain === "days" ? dailyExtremeRecords(id) : monthlyExtremeRecords(id))
       .filter(row => !monthFilter || row.month === monthFilter)
       .filter(row => grain !== "days" || !dayFilter || row.day === dayFilter)
@@ -1016,7 +1046,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const direction = extremeDirection.value === "wettest" ? "Wettest" : "Driest";
     document.getElementById("extremeTitle").textContent = `${direction} ${titleGrain}: ${region.name}`;
     document.getElementById("periodHead").textContent = grain === "days" ? "Date" : "Month";
-    document.getElementById("extremeHint").textContent = `Filtered to ${monthText}${dayText}; ranked by ${extremeMetric.value} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
+    document.getElementById("extremeHint").textContent = `Filtered to ${monthText}${dayText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
 
     if (!rows.length) {
       selectedExtremeRecord = null;
@@ -1035,7 +1065,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
           <td>${fmt(row.rain_mm, 1)}</td>
           <td>${fmt(row.normal_mm, 1)}</td>
           <td class="${klass}">${signed(anomaly, 1)}</td>
-          <td>${fmt(row.percent_normal, 1)}</td>
+          <td class="${klass}">${signed(row.anomaly_pct, 1)}%</td>
         </tr>
       `;
     }).join("");
@@ -1106,6 +1136,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   slider.addEventListener("input", update);
   regionSelect.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
   periodSelect.addEventListener("change", update);
+  anomalyUnit.addEventListener("change", update);
   monthSelect.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
   extremeGrain.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
   extremeDirection.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
