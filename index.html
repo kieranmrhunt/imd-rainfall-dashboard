@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IMD Daily Gridded Rainfall Dashboard</title>
+<style>
+:root{
+  --bg:#f5f1e9;
+  --ink:#211c2a;
+  --muted:#665f73;
+  --faint:#92899d;
+  --surface:#ffffff;
+  --surface2:#fbf8f2;
+  --line:rgba(33,28,42,.14);
+  --line2:rgba(33,28,42,.26);
+  --blue:#1f8fa6;
+  --green:#477247;
+  --red:#c7375f;
+  --gold:#cf6d12;
+  --plum:#51415f;
+  --shadow:0 18px 48px -36px rgba(33,28,42,.7);
+  --sans:"Effra","Effra Std","Mulish",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+  --mono:"Space Mono",ui-monospace,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  color:var(--ink);
+  background:
+    linear-gradient(90deg, rgba(33,28,42,.035) 1px, transparent 1px) 0 0/58px 58px,
+    linear-gradient(180deg,#fbf8f1 0%,var(--bg) 48%,#eee6d8 100%);
+  font-family:var(--sans);
+  font-size:16px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:inherit}
+.wrap{width:min(1320px, calc(100% - 32px));margin:0 auto}
+header{
+  padding:24px 0 18px;
+  border-bottom:1px solid var(--line);
+}
+.eyebrow{
+  font-family:var(--mono);
+  font-size:12px;
+  letter-spacing:.16em;
+  color:var(--green);
+  text-transform:uppercase;
+}
+h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spacing:0;font-weight:850}
+.standfirst{max-width:72ch;color:var(--muted);margin:0;font-size:18px}
+.meta-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+.pill{
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.72);
+  border-radius:4px;
+  padding:6px 9px;
+  font-family:var(--mono);
+  font-size:12px;
+  color:var(--muted);
+}
+.controls{
+  position:sticky;
+  top:0;
+  z-index:10;
+  background:rgba(245,241,233,.92);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.control-inner{
+  display:grid;
+  grid-template-columns:1fr auto auto auto;
+  gap:12px;
+  align-items:end;
+  padding:12px 0;
+}
+label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+select,input[type=range]{
+  font:inherit;
+  color:var(--ink);
+}
+select{
+  min-width:170px;
+  border:1px solid var(--line2);
+  border-radius:4px;
+  background:var(--surface);
+  padding:8px 9px;
+}
+input[type=range]{width:100%;accent-color:var(--green)}
+.year-readout{
+  min-width:72px;
+  border:1px solid var(--line2);
+  background:#2b2136;
+  color:#fff;
+  padding:8px 10px;
+  border-radius:4px;
+  font-family:var(--mono);
+  font-size:15px;
+  text-align:center;
+}
+main{padding:18px 0 34px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+.card,.panel{
+  background:rgba(255,255,255,.82);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+}
+.card{border-radius:6px;padding:14px}
+.card .label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
+.card .value{font-size:clamp(24px,3vw,36px);font-weight:850;line-height:1.05;margin-top:7px}
+.card .sub{font-size:13px;color:var(--muted);margin-top:5px}
+.grid{
+  display:grid;
+  grid-template-columns:minmax(0,1.18fr) minmax(360px,.82fr);
+  gap:14px;
+}
+.panel{border-radius:6px;padding:14px;min-width:0}
+.panel-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:12px;
+  margin-bottom:10px;
+}
+.panel h2{margin:0;font-size:18px;line-height:1.2}
+.panel .hint{margin:3px 0 0;color:var(--muted);font-size:13px}
+.map-wrap{
+  position:relative;
+  min-height:560px;
+  border:1px solid var(--line);
+  background:#fffaf3;
+  overflow:hidden;
+}
+#mapCanvas{display:block;width:100%;height:560px}
+.legend{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  font-family:var(--mono);
+  font-size:11px;
+  color:var(--muted);
+  flex-wrap:wrap;
+}
+.swatch{width:130px;height:10px;border:1px solid rgba(0,0,0,.14);background:linear-gradient(90deg,#f0e7b4,#87c8b5,#2c91b2,#3158a1,#3b1b5a)}
+.tooltip{
+  position:absolute;
+  pointer-events:none;
+  display:none;
+  background:#211c2a;
+  color:white;
+  border-radius:4px;
+  padding:7px 8px;
+  font-family:var(--mono);
+  font-size:12px;
+  box-shadow:0 12px 26px -18px #000;
+}
+.stack{display:grid;gap:14px}
+svg{display:block;width:100%;height:260px}
+.chart-note{font-size:12px;color:var(--muted);margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left}
+th{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.source{
+  margin-top:14px;
+  display:grid;
+  gap:8px;
+  color:var(--muted);
+  font-size:13px;
+}
+.source strong{color:var(--ink)}
+.error{
+  margin:24px auto;
+  max-width:760px;
+  padding:16px;
+  background:#fff;
+  border:1px solid var(--line2);
+  border-radius:6px;
+}
+@media (max-width:980px){
+  .control-inner{grid-template-columns:1fr 1fr}
+  .kpis{grid-template-columns:repeat(2,1fr)}
+  .grid{grid-template-columns:1fr}
+  .map-wrap{min-height:460px}
+  #mapCanvas{height:460px}
+}
+@media (max-width:620px){
+  .wrap{width:min(100% - 22px,1320px)}
+  .control-inner{grid-template-columns:1fr}
+  .kpis{grid-template-columns:1fr}
+  .panel{padding:11px}
+  .map-wrap{min-height:400px}
+  #mapCanvas{height:400px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="eyebrow">India Meteorological Department gridded rainfall</div>
+    <h1>Daily Rainfall Dashboard</h1>
+    <p class="standfirst">All-India rainfall totals, monsoon contribution, daily accumulation, and gridded maps from the IMD 0.25 degree daily rainfall archive.</p>
+    <div class="meta-row" id="metaRow"></div>
+  </div>
+</header>
+
+<section class="controls">
+  <div class="wrap control-inner">
+    <label>Year
+      <input id="yearSlider" type="range" min="1901" max="2025" value="2025" step="1">
+    </label>
+    <div id="yearValue" class="year-readout">2025</div>
+    <label>Map
+      <select id="mapMode">
+        <option value="annual">Annual total</option>
+        <option value="jjas">JJAS total</option>
+        <option value="annualAnomaly">Annual anomaly</option>
+        <option value="jjasAnomaly">JJAS anomaly</option>
+        <option value="annualPercent">Annual percent of normal</option>
+        <option value="jjasPercent">JJAS percent of normal</option>
+      </select>
+    </label>
+    <label>Trend
+      <select id="trendMode">
+        <option value="annual">Annual</option>
+        <option value="jjas">JJAS</option>
+      </select>
+    </label>
+  </div>
+</section>
+
+<main class="wrap">
+  <div id="error" class="error" hidden></div>
+  <section class="kpis" id="kpis"></section>
+
+  <section class="grid">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Gridded Rainfall Map</h2>
+          <p class="hint" id="mapHint"></p>
+        </div>
+        <div class="legend">
+          <span id="legendMin"></span>
+          <span class="swatch" id="legendSwatch"></span>
+          <span id="legendMax"></span>
+        </div>
+      </div>
+      <div class="map-wrap">
+        <canvas id="mapCanvas"></canvas>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+    </div>
+
+    <div class="stack">
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>All-India Time Series</h2>
+            <p class="hint" id="trendHint"></p>
+          </div>
+        </div>
+        <svg id="trendSvg" role="img" aria-label="All India rainfall trend"></svg>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <h2>Daily Accumulation</h2>
+            <p class="hint">Area-weighted all-India mean rainfall, accumulated through the selected year.</p>
+          </div>
+        </div>
+        <svg id="dailySvg" role="img" aria-label="Daily cumulative rainfall"></svg>
+      </div>
+    </div>
+  </section>
+
+  <section class="grid" style="margin-top:14px">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Monthly Profile</h2>
+          <p class="hint">Selected year against the baseline monthly climatology.</p>
+        </div>
+      </div>
+      <svg id="monthlySvg" role="img" aria-label="Monthly rainfall profile"></svg>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Wettest All-India Days</h2>
+          <p class="hint">Ranked by national daily mean rainfall.</p>
+        </div>
+      </div>
+      <table>
+        <thead><tr><th>Date</th><th>Mean mm</th><th>Year total</th></tr></thead>
+        <tbody id="wettestBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel source">
+    <div><strong>Source:</strong> India Meteorological Department, 0.25 x 0.25 degree daily gridded rainfall binary archive. Grid is 135 x 129 points from 6.5N, 66.5E to 38.5N, 100.0E; units are mm.</div>
+    <div><strong>Citation:</strong> Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.</div>
+    <div><strong>Method:</strong> all-India totals are area-weighted with cosine-latitude weights over valid IMD grid cells. Normals and anomalies use the dashboard baseline shown above.</div>
+  </section>
+</main>
+
+<script src="data/dashboard_data.js"></script>
+<script src="assets/india_adm0_simplified.js"></script>
+<script>
+(() => {
+  const data = window.IMD_RAINFALL_DATA;
+  const boundary = window.INDIA_BOUNDARY;
+  const error = document.getElementById("error");
+  if (!data || !boundary) {
+    error.hidden = false;
+    error.textContent = "Dashboard data has not been generated yet. Run scripts/process_imd_rainfall.py after downloading the IMD files.";
+    return;
+  }
+
+  const years = data.years;
+  const rows = data.series.annual;
+  const rowByYear = new Map(rows.map(row => [row.year, row]));
+  const slider = document.getElementById("yearSlider");
+  const yearValue = document.getElementById("yearValue");
+  const mapMode = document.getElementById("mapMode");
+  const trendMode = document.getElementById("trendMode");
+  const kpis = document.getElementById("kpis");
+  const canvas = document.getElementById("mapCanvas");
+  const tooltip = document.getElementById("tooltip");
+  const ctx = canvas.getContext("2d");
+  const pointCount = data.points.lon.length;
+  const decoded = new Map();
+  let mapPixels = [];
+
+  slider.min = years[0];
+  slider.max = years[years.length - 1];
+  slider.value = years[years.length - 1];
+  yearValue.textContent = slider.value;
+
+  document.getElementById("metaRow").innerHTML = [
+    `${data.meta.downloadedYears[0]}-${data.meta.downloadedYears[1]}`,
+    `${data.meta.yearCount} years`,
+    `${data.meta.grid.validCellCount.toLocaleString()} valid grid cells`,
+    `${data.meta.grid.resolutionDegrees} degree grid`,
+    `Normal: ${data.meta.baseline}`,
+    `Generated ${data.meta.generated}`
+  ].map(text => `<span class="pill">${text}</span>`).join("");
+
+  function baselineRange() {
+    const match = String(data.meta.baseline).match(/(\d{4})-(\d{4})/);
+    if (!match) return [years[0], years[years.length - 1]];
+    return [Number(match[1]), Number(match[2])];
+  }
+
+  const [baseStart, baseEnd] = baselineRange();
+  const baselineRows = rows.filter(row => row.year >= baseStart && row.year <= baseEnd);
+  const baseAnnual = mean(baselineRows.map(row => row.annual_mm));
+  const baseJjas = mean(baselineRows.map(row => row.jjas_mm));
+
+  function mean(values) {
+    return values.reduce((a, b) => a + b, 0) / values.length;
+  }
+
+  function fmt(value, digits = 0) {
+    return Number(value).toLocaleString(undefined, {maximumFractionDigits: digits, minimumFractionDigits: digits});
+  }
+
+  function decodeU16(key, b64, length) {
+    if (decoded.has(key)) return decoded.get(key);
+    const bin = atob(b64);
+    const arr = new Uint16Array(length);
+    for (let i = 0; i < length; i += 1) {
+      arr[i] = bin.charCodeAt(i * 2) | (bin.charCodeAt(i * 2 + 1) << 8);
+    }
+    decoded.set(key, arr);
+    return arr;
+  }
+
+  function dailyForYear(year) {
+    const len = data.series.dailyLengths[String(year)];
+    const raw = decodeU16(`daily-${year}`, data.series.dailyMeanByYear[String(year)], len);
+    return Array.from(raw, v => v / 10);
+  }
+
+  function mapArray(kind, year) {
+    return decodeU16(`${kind}-${year}`, data.maps[kind][String(year)], pointCount);
+  }
+
+  function climArray(kind) {
+    const field = kind === "annual" ? "climatologyAnnual" : "climatologyJjas";
+    return decodeU16(`clim-${kind}`, data.maps[field], pointCount);
+  }
+
+  function mapValues() {
+    const year = Number(slider.value);
+    const mode = mapMode.value;
+    const kind = mode.startsWith("jjas") ? "jjas" : "annual";
+    const selected = mapArray(kind, year);
+    const clim = climArray(kind);
+    const values = new Float32Array(pointCount);
+    for (let i = 0; i < pointCount; i += 1) {
+      const val = selected[i] === 65535 ? NaN : selected[i];
+      const norm = clim[i] === 65535 ? NaN : clim[i];
+      if (mode.endsWith("Anomaly")) values[i] = Number.isFinite(val) && Number.isFinite(norm) ? val - norm : NaN;
+      else if (mode.endsWith("Percent")) values[i] = Number.isFinite(val) && norm > 0 ? 100 * val / norm : NaN;
+      else values[i] = val;
+    }
+    return {values, kind, mode};
+  }
+
+  function colourStops(mode) {
+    if (mode.endsWith("Anomaly")) {
+      return {min:-1200, max:1200, stops:[[0,"#8d4f22"],[0.45,"#f2e7cf"],[0.5,"#fffaf3"],[0.55,"#d8efe9"],[1,"#146f7a"]], minLabel:"-1200 mm", maxLabel:"+1200 mm"};
+    }
+    if (mode.endsWith("Percent")) {
+      return {min:50, max:150, stops:[[0,"#b54a35"],[0.5,"#f7f0d6"],[1,"#167a84"]], minLabel:"50%", maxLabel:"150%"};
+    }
+    return {min:0, max:7000, stops:[[0,"#f0e7b4"],[0.18,"#b9d9a2"],[0.36,"#5fb8b4"],[0.58,"#2c91b2"],[0.78,"#3158a1"],[1,"#3b1b5a"]], minLabel:"0 mm", maxLabel:"7000 mm"};
+  }
+
+  function hexToRgb(hex) {
+    const clean = hex.replace("#", "");
+    return [parseInt(clean.slice(0,2),16), parseInt(clean.slice(2,4),16), parseInt(clean.slice(4,6),16)];
+  }
+
+  function lerp(a, b, t) {
+    return a + (b - a) * t;
+  }
+
+  function colour(value, scale) {
+    if (!Number.isFinite(value)) return "rgba(0,0,0,0)";
+    const t = Math.max(0, Math.min(1, (value - scale.min) / (scale.max - scale.min)));
+    const stops = scale.stops;
+    for (let i = 0; i < stops.length - 1; i += 1) {
+      const [aT, aC] = stops[i];
+      const [bT, bC] = stops[i + 1];
+      if (t >= aT && t <= bT) {
+        const local = (t - aT) / (bT - aT || 1);
+        const a = hexToRgb(aC);
+        const b = hexToRgb(bC);
+        return `rgb(${Math.round(lerp(a[0], b[0], local))},${Math.round(lerp(a[1], b[1], local))},${Math.round(lerp(a[2], b[2], local))})`;
+      }
+    }
+    return stops[stops.length - 1][1];
+  }
+
+  const extent = {minLon:66, maxLon:101, minLat:5.5, maxLat:38.8};
+  function projector(width, height) {
+    const pad = 18;
+    const scale = Math.min((width - pad * 2) / (extent.maxLon - extent.minLon), (height - pad * 2) / (extent.maxLat - extent.minLat));
+    const plotW = (extent.maxLon - extent.minLon) * scale;
+    const plotH = (extent.maxLat - extent.minLat) * scale;
+    const ox = (width - plotW) / 2;
+    const oy = (height - plotH) / 2;
+    return (lon, lat) => [ox + (lon - extent.minLon) * scale, oy + (extent.maxLat - lat) * scale, scale];
+  }
+
+  function drawBoundary(project) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(33,28,42,.68)";
+    ctx.lineWidth = 1.2;
+    const features = boundary.type === "FeatureCollection" ? boundary.features : [boundary];
+    for (const feature of features) {
+      const geom = feature.geometry || feature;
+      const polygons = geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
+      for (const poly of polygons) {
+        for (const ring of poly) {
+          ctx.beginPath();
+          ring.forEach((coord, index) => {
+            const [x, y] = project(coord[0], coord[1]);
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawMap() {
+    const ratio = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.fillStyle = "#fffaf3";
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    const {values, kind, mode} = mapValues();
+    const scale = colourStops(mode);
+    const project = projector(rect.width, rect.height);
+    const cell = project(66.25, 6.5)[2] * data.meta.grid.resolutionDegrees;
+    mapPixels = [];
+
+    for (let i = 0; i < pointCount; i += 1) {
+      const lon = data.points.lon[i];
+      const lat = data.points.lat[i];
+      const [x, y] = project(lon, lat);
+      ctx.fillStyle = colour(values[i], scale);
+      ctx.fillRect(x - cell / 2, y - cell / 2, Math.max(cell, 1), Math.max(cell, 1));
+      mapPixels.push({x, y, lon, lat, value: values[i]});
+    }
+    drawBoundary(project);
+
+    document.getElementById("legendMin").textContent = scale.minLabel;
+    document.getElementById("legendMax").textContent = scale.maxLabel;
+    document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(s => s[1]).join(",")})`;
+    const modeLabel = mapMode.options[mapMode.selectedIndex].text;
+    document.getElementById("mapHint").textContent = `${modeLabel}, ${slider.value}. Baseline: ${data.meta.baseline}.`;
+  }
+
+  function linePath(points) {
+    return points.map((p, i) => `${i ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+  }
+
+  function clearSvg(svg) {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+  }
+
+  function svgEl(name, attrs = {}) {
+    const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+    Object.entries(attrs).forEach(([key, value]) => el.setAttribute(key, value));
+    return el;
+  }
+
+  function drawAxes(svg, x0, y0, width, height, yMin, yMax) {
+    svg.appendChild(svgEl("line", {x1:x0, y1:y0 + height, x2:x0 + width, y2:y0 + height, stroke:"rgba(33,28,42,.35)"}));
+    svg.appendChild(svgEl("line", {x1:x0, y1:y0, x2:x0, y2:y0 + height, stroke:"rgba(33,28,42,.35)"}));
+    for (let i = 0; i <= 4; i += 1) {
+      const y = y0 + height - height * i / 4;
+      const label = yMin + (yMax - yMin) * i / 4;
+      svg.appendChild(svgEl("line", {x1:x0, y1:y, x2:x0 + width, y2:y, stroke:"rgba(33,28,42,.08)"}));
+      const text = svgEl("text", {x:4, y:y + 4, fill:"#665f73", "font-size":"11"});
+      text.textContent = fmt(label, 0);
+      svg.appendChild(text);
+    }
+  }
+
+  function drawTrend() {
+    const svg = document.getElementById("trendSvg");
+    clearSvg(svg);
+    const box = svg.getBoundingClientRect();
+    const width = box.width || 500;
+    const height = 260;
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    const mode = trendMode.value;
+    const values = rows.map(row => mode === "annual" ? row.annual_mm : row.jjas_mm);
+    const selectedYear = Number(slider.value);
+    const selectedIndex = years.indexOf(selectedYear);
+    const pad = {l:46, r:12, t:12, b:30};
+    const plotW = width - pad.l - pad.r;
+    const plotH = height - pad.t - pad.b;
+    const minY = Math.max(0, Math.floor(Math.min(...values) / 250) * 250);
+    const maxY = Math.ceil(Math.max(...values) / 250) * 250;
+    const x = i => pad.l + plotW * i / (values.length - 1);
+    const y = v => pad.t + plotH - plotH * (v - minY) / (maxY - minY);
+    drawAxes(svg, pad.l, pad.t, plotW, plotH, minY, maxY);
+    svg.appendChild(svgEl("path", {d:linePath(values.map((v, i) => [x(i), y(v)])), fill:"none", stroke:mode === "annual" ? "#1f8fa6" : "#477247", "stroke-width":"2.2"}));
+    const dot = svgEl("circle", {cx:x(selectedIndex), cy:y(values[selectedIndex]), r:5, fill:"#c7375f", stroke:"#fff", "stroke-width":"2"});
+    svg.appendChild(dot);
+    [years[0], 1950, 2000, years[years.length - 1]].forEach(year => {
+      const i = years.indexOf(year);
+      if (i < 0) return;
+      const text = svgEl("text", {x:x(i), y:height - 8, fill:"#665f73", "font-size":"11", "text-anchor":"middle"});
+      text.textContent = year;
+      svg.appendChild(text);
+    });
+    document.getElementById("trendHint").textContent = `${mode === "annual" ? "Annual" : "JJAS"} area-weighted all-India rainfall totals, mm.`;
+  }
+
+  function drawDaily() {
+    const svg = document.getElementById("dailySvg");
+    clearSvg(svg);
+    const box = svg.getBoundingClientRect();
+    const width = box.width || 500;
+    const height = 260;
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    const year = Number(slider.value);
+    const daily = dailyForYear(year);
+    const cumulative = [];
+    daily.reduce((sum, val, i) => {
+      cumulative[i] = sum + val;
+      return cumulative[i];
+    }, 0);
+    const pad = {l:46, r:12, t:12, b:30};
+    const plotW = width - pad.l - pad.r;
+    const plotH = height - pad.t - pad.b;
+    const maxY = Math.ceil(Math.max(...cumulative) / 250) * 250;
+    const x = i => pad.l + plotW * i / (daily.length - 1);
+    const y = v => pad.t + plotH - plotH * v / maxY;
+    drawAxes(svg, pad.l, pad.t, plotW, plotH, 0, maxY);
+    svg.appendChild(svgEl("path", {d:linePath(cumulative.map((v, i) => [x(i), y(v)])), fill:"none", stroke:"#51415f", "stroke-width":"2.2"}));
+    [["Jan",0],["Apr",90],["Jul",181],["Oct",273],["Dec",daily.length - 1]].forEach(([label, idx]) => {
+      const text = svgEl("text", {x:x(Math.min(idx, daily.length - 1)), y:height - 8, fill:"#665f73", "font-size":"11", "text-anchor":"middle"});
+      text.textContent = label;
+      svg.appendChild(text);
+    });
+  }
+
+  function drawMonthly() {
+    const svg = document.getElementById("monthlySvg");
+    clearSvg(svg);
+    const box = svg.getBoundingClientRect();
+    const width = box.width || 500;
+    const height = 260;
+    svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    const year = Number(slider.value);
+    const monthly = data.series.monthlyByYear[String(year)];
+    const clim = data.series.monthlyClimatology;
+    const pad = {l:46, r:12, t:12, b:34};
+    const plotW = width - pad.l - pad.r;
+    const plotH = height - pad.t - pad.b;
+    const maxY = Math.ceil(Math.max(...monthly, ...clim) / 50) * 50;
+    const y = v => pad.t + plotH - plotH * v / maxY;
+    drawAxes(svg, pad.l, pad.t, plotW, plotH, 0, maxY);
+    const band = plotW / 12;
+    const months = ["J","F","M","A","M","J","J","A","S","O","N","D"];
+    for (let i = 0; i < 12; i += 1) {
+      const x0 = pad.l + i * band + 3;
+      const climH = pad.t + plotH - y(clim[i]);
+      const h = pad.t + plotH - y(monthly[i]);
+      svg.appendChild(svgEl("rect", {x:x0, y:y(clim[i]), width:band - 6, height:climH, fill:"rgba(102,95,115,.24)"}));
+      svg.appendChild(svgEl("rect", {x:x0 + 3, y:y(monthly[i]), width:band - 12, height:h, fill:"#1f8fa6"}));
+      const text = svgEl("text", {x:x0 + band / 2 - 3, y:height - 10, fill:"#665f73", "font-size":"11", "text-anchor":"middle"});
+      text.textContent = months[i];
+      svg.appendChild(text);
+    }
+  }
+
+  function drawKpis() {
+    const year = Number(slider.value);
+    const row = rowByYear.get(year);
+    const annualAnom = row.annual_mm - baseAnnual;
+    const jjasAnom = row.jjas_mm - baseJjas;
+    const cards = [
+      ["Annual total", `${fmt(row.annual_mm, 0)} mm`, `${annualAnom >= 0 ? "+" : ""}${fmt(annualAnom, 0)} mm vs normal`],
+      ["JJAS total", `${fmt(row.jjas_mm, 0)} mm`, `${jjasAnom >= 0 ? "+" : ""}${fmt(jjasAnom, 0)} mm vs normal`],
+      ["Monsoon share", `${fmt(row.jjas_share, 1)}%`, "June to September share of annual total"],
+      ["Wet area", `${fmt(row.wet_area_fraction, 1)}%`, "Mean daily area with rainfall >= 1 mm"],
+      ["Wet rank", `#${row.wet_rank}`, `Wettest day ${row.wettest_day}: ${fmt(row.wettest_day_mean_mm, 1)} mm`],
+    ];
+    kpis.innerHTML = cards.map(card => `
+      <article class="card">
+        <div class="label">${card[0]}</div>
+        <div class="value">${card[1]}</div>
+        <div class="sub">${card[2]}</div>
+      </article>
+    `).join("");
+  }
+
+  function drawWettestTable() {
+    const tbody = document.getElementById("wettestBody");
+    tbody.innerHTML = data.series.wettestAllIndiaDays.map(row => `
+      <tr>
+        <td>${row.wettest_day}</td>
+        <td>${fmt(row.wettest_day_mean_mm, 1)}</td>
+        <td>${fmt(row.annual_mm, 0)}</td>
+      </tr>
+    `).join("");
+  }
+
+  function update() {
+    yearValue.textContent = slider.value;
+    drawKpis();
+    drawMap();
+    drawTrend();
+    drawDaily();
+    drawMonthly();
+  }
+
+  canvas.addEventListener("mousemove", event => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    let best = null;
+    let bestDist = Infinity;
+    for (const point of mapPixels) {
+      const d = Math.hypot(point.x - x, point.y - y);
+      if (d < bestDist) {
+        best = point;
+        bestDist = d;
+      }
+    }
+    if (!best || bestDist > 9 || !Number.isFinite(best.value)) {
+      tooltip.style.display = "none";
+      return;
+    }
+    const unit = mapMode.value.endsWith("Percent") ? "%" : "mm";
+    tooltip.style.display = "block";
+    tooltip.style.left = `${Math.min(rect.width - 170, x + 12)}px`;
+    tooltip.style.top = `${Math.max(8, y - 12)}px`;
+    tooltip.innerHTML = `${best.lat.toFixed(2)}N, ${best.lon.toFixed(2)}E<br>${fmt(best.value, mapMode.value.endsWith("Percent") ? 0 : 0)} ${unit}`;
+  });
+  canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+  slider.addEventListener("input", update);
+  mapMode.addEventListener("change", update);
+  trendMode.addEventListener("change", drawTrend);
+  window.addEventListener("resize", () => { drawMap(); drawTrend(); drawDaily(); drawMonthly(); });
+
+  drawWettestTable();
+  update();
+})();
+</script>
+</body>
+</html>

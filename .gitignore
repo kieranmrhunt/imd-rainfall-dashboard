@@ -1,0 +1,4 @@
+raw/
+*.log
+*.part
+__pycache__/

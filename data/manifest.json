@@ -1,0 +1,24 @@
+{
+  "title": "IMD Daily Gridded Rainfall Dashboard",
+  "source": "India Meteorological Department 0.25 x 0.25 degree daily gridded rainfall binary archive",
+  "sourcePage": "https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_Bin.html",
+  "netcdfPage": "https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_NetCDF.html",
+  "citation": "Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.",
+  "downloadedYears": [
+    1901,
+    2025
+  ],
+  "yearCount": 125,
+  "grid": {
+    "resolutionDegrees": 0.25,
+    "lonStart": 66.5,
+    "latStart": 6.5,
+    "lonCount": 135,
+    "latCount": 129,
+    "validCellCount": 4964
+  },
+  "baseline": "1991-2020",
+  "generated": "2026-07-05 15:16 UTC",
+  "mapEncoding": "uint16 little-endian base64, units mm, 65535 missing",
+  "dailyEncoding": "uint16 little-endian base64, units tenths of mm"
+}
