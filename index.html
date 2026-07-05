@@ -24,6 +24,7 @@
   --mono:"Space Mono",ui-monospace,Consolas,"Liberation Mono",monospace;
 }
 *{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:hidden}
 body{
   margin:0;
   color:var(--ink);
@@ -44,9 +45,10 @@ header{padding:24px 0 18px;border-bottom:1px solid var(--line)}
   letter-spacing:.16em;
   color:var(--green);
   text-transform:uppercase;
+  overflow-wrap:anywhere;
 }
 h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spacing:0;font-weight:850}
-.standfirst{max-width:76ch;color:var(--muted);margin:0;font-size:18px}
+.standfirst{max-width:76ch;color:var(--muted);margin:0;font-size:18px;overflow-wrap:anywhere}
 .controls{
   position:sticky;
   top:0;
@@ -117,16 +119,16 @@ body[data-view="extremes"] .anomaly-control,
 body[data-view="extremes"] .period-control{display:none}
 body:not([data-extreme-grain="days"]) .day-control{display:none}
 main{padding:18px 0 34px}
-.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:14px 0}
 .card,.panel{
   background:rgba(255,255,255,.82);
   border:1px solid var(--line);
   box-shadow:var(--shadow);
 }
-.card{border-radius:6px;padding:14px}
+.card{border-radius:6px;padding:10px 12px;min-height:82px}
 .card .label{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
-.card .value{font-size:clamp(24px,3vw,36px);font-weight:850;line-height:1.05;margin-top:7px}
-.card .sub{font-size:13px;color:var(--muted);margin-top:5px}
+.card .value{font-size:clamp(19px,2.2vw,28px);font-weight:850;line-height:1.05;margin-top:5px;overflow-wrap:anywhere}
+.card .sub{font-size:12px;color:var(--muted);margin-top:4px}
 .grid{
   display:grid;
   grid-template-columns:minmax(0,1.18fr) minmax(360px,.82fr);
@@ -215,18 +217,24 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   .control-inner{grid-template-columns:1fr 1fr 1fr}
 }
 @media (max-width:980px){
-  .kpis{grid-template-columns:repeat(2,1fr)}
   .grid{grid-template-columns:1fr}
   .map-wrap{min-height:460px}
   #mapCanvas{height:460px}
 }
 @media (max-width:620px){
   .wrap{width:min(100% - 22px,1320px)}
+  header{padding:20px 0 16px}
+  .eyebrow{font-size:10px;letter-spacing:.12em}
+  h1{font-size:30px}
+  .standfirst{font-size:16px;max-width:32ch}
   .control-inner{grid-template-columns:1fr}
-  .kpis{grid-template-columns:1fr}
+  .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .panel{padding:11px}
   .map-wrap{min-height:400px}
   #mapCanvas{height:400px}
+}
+@media (max-width:380px){
+  .kpis{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -299,7 +307,6 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
 <main class="wrap">
   <div id="error" class="error" hidden></div>
-  <section class="kpis" id="kpis"></section>
 
   <section class="grid">
     <div class="panel map-panel">
@@ -353,6 +360,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     </div>
   </section>
 
+  <section class="kpis" id="kpis"></section>
+
   <section class="panel extremes-panel" style="margin-top:14px">
     <div class="panel-head">
       <div>
@@ -374,9 +383,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   </section>
 </main>
 
-<script src="data/dashboard_data.js?v=20260705-pctanom"></script>
-<script src="assets/india_adm0_simplified.js?v=20260705-pctanom"></script>
-<script src="assets/india_adm1_simplified.js?v=20260705-pctanom"></script>
+<script src="data/dashboard_data.js?v=20260705-trend-palette"></script>
+<script src="assets/india_adm0_simplified.js?v=20260705-trend-palette"></script>
+<script src="assets/india_adm1_simplified.js?v=20260705-trend-palette"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
@@ -504,6 +513,74 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return Number.isFinite(value) && Number.isFinite(normal) && normal > 0 ? 100 * (value - normal) / normal : NaN;
   }
 
+  function logGamma(z) {
+    const coeff = [
+      0.9999999999998099, 676.5203681218851, -1259.1392167224028,
+      771.3234287776531, -176.6150291621406, 12.5073432786869,
+      -0.13857109526572012, 9.984369578019572e-6, 1.5056327351493116e-7
+    ];
+    if (z < 0.5) return Math.log(Math.PI) - Math.log(Math.sin(Math.PI * z)) - logGamma(1 - z);
+    z -= 1;
+    let x = coeff[0];
+    for (let i = 1; i < coeff.length; i += 1) x += coeff[i] / (z + i);
+    const t = z + 7.5;
+    return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(t) - t + Math.log(x);
+  }
+
+  function betaContinuedFraction(x, a, b) {
+    const maxIterations = 100;
+    const eps = 3e-7;
+    const fpmin = 1e-30;
+    let qab = a + b;
+    let qap = a + 1;
+    let qam = a - 1;
+    let c = 1;
+    let d = 1 - qab * x / qap;
+    if (Math.abs(d) < fpmin) d = fpmin;
+    d = 1 / d;
+    let h = d;
+    for (let m = 1; m <= maxIterations; m += 1) {
+      const m2 = 2 * m;
+      let aa = m * (b - m) * x / ((qam + m2) * (a + m2));
+      d = 1 + aa * d;
+      if (Math.abs(d) < fpmin) d = fpmin;
+      c = 1 + aa / c;
+      if (Math.abs(c) < fpmin) c = fpmin;
+      d = 1 / d;
+      h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
+      d = 1 + aa * d;
+      if (Math.abs(d) < fpmin) d = fpmin;
+      c = 1 + aa / c;
+      if (Math.abs(c) < fpmin) c = fpmin;
+      d = 1 / d;
+      const del = d * c;
+      h *= del;
+      if (Math.abs(del - 1) < eps) break;
+    }
+    return h;
+  }
+
+  function regularizedBeta(x, a, b) {
+    if (x <= 0) return 0;
+    if (x >= 1) return 1;
+    const bt = Math.exp(logGamma(a + b) - logGamma(a) - logGamma(b) + a * Math.log(x) + b * Math.log1p(-x));
+    if (x < (a + 1) / (a + b + 2)) return bt * betaContinuedFraction(x, a, b) / a;
+    return 1 - bt * betaContinuedFraction(1 - x, b, a) / b;
+  }
+
+  function studentTPValue(t, df) {
+    if (!Number.isFinite(t) || df <= 0) return NaN;
+    const x = df / (df + t * t);
+    return Math.max(0, Math.min(1, regularizedBeta(x, df / 2, 0.5)));
+  }
+
+  function formatP(value) {
+    if (!Number.isFinite(value)) return "n/a";
+    if (value < 0.001) return "<0.001";
+    return value.toFixed(3);
+  }
+
   function rankedByLabel(value) {
     if (value === "absolute") return "absolute rainfall";
     if (value === "percentAnomaly") return "% anomaly";
@@ -549,17 +626,17 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return {year, month:date.getUTCMonth() + 1, day:date.getUTCDate(), date:date.toISOString().slice(0, 10)};
   }
 
-  function periodValue(year, period = periodSelect.value, month = selectedMonth()) {
-    const row = rowForYear(year);
+  function periodValue(year, period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+    const row = rowForYear(year, id);
     if (period === "annual") return row?.annual_mm;
     if (period === "jjas") return row?.jjas_mm;
-    return monthlyForYear(year)[month - 1];
+    return monthlyForYear(year, id)[month - 1];
   }
 
-  function periodNormal(period = periodSelect.value, month = selectedMonth()) {
-    if (period === "annual") return baselineMean("annual_mm");
-    if (period === "jjas") return baselineMean("jjas_mm");
-    return monthlyClimatology()[month - 1];
+  function periodNormal(period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+    if (period === "annual") return baselineMean("annual_mm", id);
+    if (period === "jjas") return baselineMean("jjas_mm", id);
+    return monthlyClimatology(id)[month - 1];
   }
 
   function periodLabel(period = periodSelect.value, month = selectedMonth()) {
@@ -572,6 +649,49 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     if (period === "annual") return `${year}`;
     if (period === "jjas") return `JJAS ${year}`;
     return `${monthNames[month - 1]} ${year}`;
+  }
+
+  function trendStats(period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+    const points = rowsForRegion(id)
+      .map(row => ({year:row.year, value:periodValue(row.year, period, month, id)}))
+      .filter(point => Number.isFinite(point.value));
+    const n = points.length;
+    if (n < 3) return null;
+    const xMean = mean(points.map(point => point.year));
+    const yMean = mean(points.map(point => point.value));
+    let sxx = 0;
+    let sxy = 0;
+    for (const point of points) {
+      sxx += (point.year - xMean) ** 2;
+      sxy += (point.year - xMean) * (point.value - yMean);
+    }
+    if (sxx <= 0) return null;
+    const slope = sxy / sxx;
+    const intercept = yMean - slope * xMean;
+    let sse = 0;
+    for (const point of points) {
+      const fitted = intercept + slope * point.year;
+      sse += (point.value - fitted) ** 2;
+    }
+    const df = n - 2;
+    const residualVariance = df > 0 ? sse / df : NaN;
+    const se = Number.isFinite(residualVariance) && residualVariance >= 0 ? Math.sqrt(residualVariance / sxx) : NaN;
+    const t = se > 0 ? slope / se : NaN;
+    const p = studentTPValue(Math.abs(t), df);
+    return {
+      n,
+      startYear:points[0].year,
+      endYear:points[points.length - 1].year,
+      slope,
+      slopeDecade:slope * 10,
+      intercept,
+      p,
+    };
+  }
+
+  function trendText(stats) {
+    if (!stats) return "Linear trend unavailable for this selection.";
+    return `Linear trend ${stats.startYear}-${stats.endYear}: ${signed(stats.slopeDecade, 1)} mm/decade; p=${formatP(stats.p)}.`;
   }
 
   function mapArrayForPeriod(period, year, month) {
@@ -626,8 +746,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
   function colourStops(context) {
     if (context.display === "percentAnomaly") {
-      const max = context.period === "monthly" ? 300 : 150;
-      return {min:-100, max, stops:[[0,"#8d4f22"],[0.34,"#f2e7cf"],[0.5,"#fffaf3"],[0.66,"#d8efe9"],[1,"#146f7a"]], minLabel:"-100%", maxLabel:`+${max}%`, unit:"%"};
+      const limit = 100;
+      return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.28,"#d7b487"],[0.48,"#f8f2e8"],[0.5,"#fffaf3"],[0.52,"#edf7f3"],[0.72,"#7cc8bf"],[1,"#006d77"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
     }
     if (context.display === "anomaly") {
       const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : 600;
@@ -831,16 +951,22 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const month = selectedMonth();
     const rows = rowsForRegion();
     const values = rows.map(row => periodValue(row.year, period, month));
+    const stats = trendStats(period, month);
+    const fitted = stats ? rows.map(row => stats.intercept + stats.slope * row.year) : [];
     const selectedIndex = Math.max(0, rows.findIndex(row => row.year === selectedYear()));
     const pad = {l:46, r:12, t:12, b:30};
     const plotW = width - pad.l - pad.r;
     const plotH = height - pad.t - pad.b;
-    const minY = Math.max(0, Math.floor(Math.min(...values) / 50) * 50);
-    const maxY = Math.ceil(Math.max(...values) / 50) * 50;
+    const scaleValues = values.concat(fitted).filter(value => Number.isFinite(value));
+    const minY = Math.max(0, Math.floor(Math.min(...scaleValues) / 50) * 50);
+    const maxY = Math.ceil(Math.max(...scaleValues) / 50) * 50;
     const x = index => pad.l + plotW * index / (values.length - 1);
     const y = value => pad.t + plotH - plotH * (value - minY) / ((maxY - minY) || 1);
     drawAxes(svg, pad.l, pad.t, plotW, plotH, minY, maxY);
     svg.appendChild(svgEl("path", {d:linePath(values.map((value, index) => [x(index), y(value)])), fill:"none", stroke:period === "jjas" ? "#477247" : period === "monthly" ? "#c7375f" : "#1f8fa6", "stroke-width":"2.2"}));
+    if (stats) {
+      svg.appendChild(svgEl("path", {d:linePath(fitted.map((value, index) => [x(index), y(value)])), fill:"none", stroke:"#2b2136", "stroke-width":"1.6", "stroke-dasharray":"5 4"}));
+    }
     svg.appendChild(svgEl("circle", {cx:x(selectedIndex), cy:y(values[selectedIndex]), r:5, fill:"#c7375f", stroke:"#fff", "stroke-width":"2"}));
     [rows[0].year, 1950, 2000, rows[rows.length - 1].year].forEach(year => {
       const index = rows.findIndex(row => row.year === year);
@@ -849,7 +975,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       text.textContent = year;
       svg.appendChild(text);
     });
-    document.getElementById("trendHint").textContent = `${periodLabel(period, month)} area-weighted ${regionInfo().name} rainfall totals, mm.`;
+    document.getElementById("trendHint").textContent = `${periodLabel(period, month)} area-weighted ${regionInfo().name} rainfall totals, mm. ${trendText(stats)}`;
   }
 
   function drawDaily() {
@@ -945,6 +1071,17 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const anomalyPct = pctAnomaly(value, normal);
     const row = rowForYear(year);
     const region = regionInfo();
+    if (currentView() === "trend") {
+      const stats = trendStats(period, month);
+      cardHtml([
+        ["Period", periodLabel(period, month), `${region.name}, ${stats ? `${stats.startYear}-${stats.endYear}` : `${years[0]}-${years[years.length - 1]}`}`],
+        ["Trend", stats ? `${signed(stats.slopeDecade, 1)} mm/decade` : "n/a", "OLS linear trend"],
+        ["p-value", stats ? formatP(stats.p) : "n/a", "Two-sided test for non-zero trend"],
+        ["Selected year", `${fmt(value, 1)} mm`, periodDateLabel(year, period, month)],
+        ["Normal", `${fmt(normal, 1)} mm`, `${data.meta.baseline} baseline`],
+      ]);
+      return;
+    }
     if (currentView() === "anomaly") {
       cardHtml([
         ["Period", periodLabel(period, month), periodDateLabel(year, period, month)],
