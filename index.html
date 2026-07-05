@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>IMD Daily Gridded Rainfall Dashboard</title>
 <style>
 :root{
@@ -361,9 +364,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   </section>
 </main>
 
-<script src="data/dashboard_data.js"></script>
-<script src="assets/india_adm0_simplified.js"></script>
-<script src="assets/india_adm1_simplified.js"></script>
+<script src="data/dashboard_data.js?v=20260705-mapfix"></script>
+<script src="assets/india_adm0_simplified.js?v=20260705-mapfix"></script>
+<script src="assets/india_adm1_simplified.js?v=20260705-mapfix"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
@@ -373,6 +376,11 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   if (!data || !boundary) {
     error.hidden = false;
     error.textContent = "Dashboard data has not been generated yet. Run scripts/process_imd_rainfall.py after downloading the IMD files.";
+    return;
+  }
+  if (!data.maps?.monthly || !data.maps?.climatologyMonthly || !data.regions?.dailyMonthClimatology) {
+    error.hidden = false;
+    error.textContent = "The dashboard data cached by this browser is out of date. Reload the page once to fetch the current monthly map data.";
     return;
   }
 
@@ -682,6 +690,23 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     ctx.restore();
   }
 
+  function showMapMessage(message) {
+    mapPixels = [];
+    document.getElementById("mapTitle").textContent = "Map unavailable";
+    document.getElementById("mapHint").textContent = message;
+    document.getElementById("legendMin").textContent = "";
+    document.getElementById("legendMax").textContent = "";
+    document.getElementById("legendSwatch").style.background = "#fffaf3";
+    ctx.save();
+    ctx.fillStyle = "#fffaf3";
+    ctx.fillRect(0, 0, canvas.getBoundingClientRect().width, canvas.getBoundingClientRect().height);
+    ctx.fillStyle = "#665f73";
+    ctx.font = "14px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(message, canvas.getBoundingClientRect().width / 2, Math.max(36, canvas.getBoundingClientRect().height / 2));
+    ctx.restore();
+  }
+
   function drawMap() {
     if (currentView() === "trend") return;
     const ratio = window.devicePixelRatio || 1;
@@ -693,7 +718,15 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     ctx.fillStyle = "#fffaf3";
     ctx.fillRect(0, 0, rect.width, rect.height);
 
-    const {values, context} = mapValues();
+    let values;
+    let context;
+    try {
+      ({values, context} = mapValues());
+    } catch (mapError) {
+      console.warn("Map data could not be drawn", mapError);
+      showMapMessage("Map data is out of date. Reload this page to fetch the latest map files.");
+      return;
+    }
     const scale = colourStops(context);
     const project = projector(rect.width, rect.height);
     const cell = project(66.25, 6.5)[2] * data.meta.grid.resolutionDegrees;
