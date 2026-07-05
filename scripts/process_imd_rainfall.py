@@ -42,6 +42,7 @@ class YearProduct:
     state_daily: np.ndarray
     annual_grid: np.ndarray
     jjas_grid: np.ndarray
+    monthly_grids: np.ndarray
     monthly_totals: np.ndarray
     state_monthly_totals: np.ndarray
     annual_total: float
@@ -182,9 +183,15 @@ def process_year(path: Path, year: int, weights: np.ndarray, states: list[StateI
     jjas_grid[jjas_valid.sum(axis=0) == 0] = np.nan
 
     monthly_totals = np.zeros(12, dtype=np.float64)
+    monthly_grids = np.full((12, NLAT, NLON), np.nan, dtype=np.float32)
     month_index = dates.month.to_numpy()
     for month in range(1, 13):
-        monthly_totals[month - 1] = daily_mean[month_index == month].sum()
+        month_mask = month_index == month
+        monthly_totals[month - 1] = daily_mean[month_mask].sum()
+        month_valid = valid[month_mask]
+        grid = np.where(month_valid, arr[month_mask], 0.0).sum(axis=0)
+        grid[month_valid.sum(axis=0) == 0] = np.nan
+        monthly_grids[month - 1] = grid
 
     for state_index, state in enumerate(states):
         if state.cell_count == 0:
@@ -209,6 +216,7 @@ def process_year(path: Path, year: int, weights: np.ndarray, states: list[StateI
         state_daily=state_daily,
         annual_grid=annual_grid.astype(np.float32),
         jjas_grid=jjas_grid.astype(np.float32),
+        monthly_grids=monthly_grids,
         monthly_totals=monthly_totals.astype(np.float32),
         state_monthly_totals=state_monthly_totals,
         annual_total=float(daily_mean.sum()),
@@ -267,7 +275,7 @@ def build_region_rows(
     monthly_by_year: dict[int, np.ndarray],
     baseline_years: set[int],
     valid_cells: int,
-) -> tuple[list[dict], list[float], dict[str, list[dict]]]:
+) -> tuple[list[dict], list[float], list[float], dict[str, list[dict]]]:
     monthly_norm = np.full(12, np.nan, dtype=np.float64)
     daily_month_norm = np.full(12, np.nan, dtype=np.float64)
     for month in range(1, 13):
@@ -354,7 +362,7 @@ def build_region_rows(
         "wettestMonths": sorted(month_records, key=lambda row: row["anomaly_mm"], reverse=True)[:15],
         "driestMonths": sorted(month_records, key=lambda row: row["anomaly_mm"])[:15],
     }
-    return annual_rows, round_list(monthly_norm, 1), extremes
+    return annual_rows, round_list(monthly_norm, 1), round_list(daily_month_norm, 2), extremes
 
 
 def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_path: Path, states: list[StateInfo], out_dir: Path) -> None:
@@ -371,15 +379,24 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
 
     clim_annual = nanmean_stack([p.annual_grid for p in baseline])
     clim_jjas = nanmean_stack([p.jjas_grid for p in baseline])
+    clim_monthly = [
+        nanmean_stack([p.monthly_grids[month_index] for p in baseline])
+        for month_index in range(12)
+    ]
     valid_points = np.isfinite(clim_annual)
     valid_lons = lon2d[valid_points]
     valid_lats = lat2d[valid_points]
 
     annual_maps: dict[str, str] = {}
     jjas_maps: dict[str, str] = {}
+    monthly_maps: dict[str, list[str]] = {}
     for product in products:
         annual_maps[str(product.year)] = encode_uint16(product.annual_grid[valid_points])
         jjas_maps[str(product.year)] = encode_uint16(product.jjas_grid[valid_points])
+        monthly_maps[str(product.year)] = [
+            encode_uint16(product.monthly_grids[month_index][valid_points])
+            for month_index in range(12)
+        ]
 
     daily_by_year = {
         str(p.year): encode_uint16(np.maximum(p.daily_mean, 0.0), scale=10.0)
@@ -427,11 +444,12 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
     region_daily_by_year: dict[str, dict[str, str]] = {}
     region_monthly_by_year: dict[str, dict[str, list[float]]] = {}
     region_monthly_clim: dict[str, list[float]] = {}
+    region_daily_month_clim: dict[str, list[float]] = {}
     region_annual_rows: dict[str, list[dict]] = {}
     region_extremes: dict[str, dict[str, list[dict]]] = {}
 
     def add_region(region_id: str, valid_cells: int, daily_by_year_raw: dict[int, np.ndarray], monthly_by_year_raw: dict[int, np.ndarray]) -> None:
-        rows_for_region, monthly_norm, extremes = build_region_rows(
+        rows_for_region, monthly_norm, daily_month_norm, extremes = build_region_rows(
             products,
             daily_by_year_raw,
             monthly_by_year_raw,
@@ -447,6 +465,7 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
             for year, values in monthly_by_year_raw.items()
         }
         region_monthly_clim[region_id] = monthly_norm
+        region_daily_month_clim[region_id] = daily_month_norm
         region_annual_rows[region_id] = rows_for_region
         region_extremes[region_id] = extremes
 
@@ -506,8 +525,13 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
         "maps": {
             "annual": annual_maps,
             "jjas": jjas_maps,
+            "monthly": monthly_maps,
             "climatologyAnnual": encode_uint16(clim_annual[valid_points]),
             "climatologyJjas": encode_uint16(clim_jjas[valid_points]),
+            "climatologyMonthly": [
+                encode_uint16(clim_monthly[month_index][valid_points])
+                for month_index in range(12)
+            ],
         },
         "series": {
             "annual": annual_rows,
@@ -526,6 +550,7 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
             "dailyLengths": daily_lengths,
             "monthlyByYear": region_monthly_by_year,
             "monthlyClimatology": region_monthly_clim,
+            "dailyMonthClimatology": region_daily_month_clim,
             "extremes": region_extremes,
         },
     }

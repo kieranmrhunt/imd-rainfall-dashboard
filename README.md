@@ -6,7 +6,8 @@ This folder contains a local dashboard built from the India Meteorological Depar
 ## What Is Included
 
 - `index.html` - static dashboard UI.
-- `data/dashboard_data.js` - compact browser-ready data for maps and charts.
+- `data/dashboard_data.js` - compact browser-ready data for maps, charts, state
+  filters, monthly gridded anomalies, and event rankings.
 - `data/annual_summary.csv` - all-India annual and JJAS summary metrics.
 - `data/monthly_by_year.csv` - area-weighted all-India monthly totals by year.
 - `data/manifest.json` - source, grid, baseline, and generation metadata.
@@ -39,13 +40,19 @@ to 38.5N, 100.0E. Rainfall is in mm and missing cells use `-999.0`.
 
 Daily means are area-weighted using cosine-latitude weights over valid IMD grid
 cells. State and union territory products use geoBoundaries ADM1 polygons to
-select grid-cell centres within each region. Annual and JJAS totals are daily
-sums of those area-weighted means.
+select grid-cell centres within each region. Annual, JJAS, and monthly totals
+are daily sums of those area-weighted means.
 
 Normals and anomalies use the 1991-2020 baseline. Wettest and driest days are
 ranked by anomaly against the selected region's baseline mean daily rainfall for
 that calendar month. Wettest and driest months are ranked by anomaly against the
 selected region's baseline monthly mean.
+
+The dashboard separates absolute totals, trend views, anomaly maps, and extremes.
+Monthly extremes can drive gridded monthly anomaly maps, so queries such as a
+state's wettest September can be inspected spatially. Daily extremes are ranked
+from the regional daily series; the map panel shows the corresponding monthly
+context because daily gridded maps are not shipped to keep the static site small.
 
 ## Refresh
 
