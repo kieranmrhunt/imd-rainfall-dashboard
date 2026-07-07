@@ -1072,8 +1072,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
 
   function colourStops(context) {
     if (context.display === "percentAnomaly") {
-      const max = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
-      return {min:-100, max, stops:[[0,"#a87545"],[0.28,"#dcc4a2"],[0.5,"#fffaf3"],[0.72,"#c6e0dc"],[1,"#267f86"]], minLabel:"-100%", maxLabel:`+${max}%`, unit:"%"};
+      const limit = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
+      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#dcc4a2"],[0.5,"#fffaf3"],[0.56,"#c6e0dc"],[1,"#267f86"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
     }
     if (context.display === "anomaly") {
       const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? 600 : context.period === "composite" ? 75 : 180;
