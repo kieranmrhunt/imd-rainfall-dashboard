@@ -384,14 +384,6 @@ body[data-view="drivers"] .extremes-panel{display:none}
           <label>Month
             <select id="driverMonth"></select>
           </label>
-          <label>Phase amp
-            <select id="driverAmp">
-              <option value="1">>= 1.0</option>
-              <option value="0.5">>= 0.5</option>
-              <option value="0">Any</option>
-              <option value="1.5">>= 1.5</option>
-            </select>
-          </label>
           <label>Condition 1
             <select id="driverType1"></select>
           </label>
@@ -409,6 +401,14 @@ body[data-view="drivers"] .extremes-panel{display:none}
           </label>
           <label>Value 2
             <select id="driverValue2"></select>
+          </label>
+          <label class="phase-amp-control" hidden>Phase amp
+            <select id="driverAmp">
+              <option value="1">>= 1.0</option>
+              <option value="0.5">>= 0.5</option>
+              <option value="0">Any</option>
+              <option value="1.5">>= 1.5</option>
+            </select>
           </label>
         </div>
         <div class="driver-summary">
@@ -482,6 +482,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
   const driverMonth = document.getElementById("driverMonth");
   const driverDisplay = document.getElementById("driverDisplay");
   const driverAmp = document.getElementById("driverAmp");
+  const driverAmpControl = document.querySelector(".phase-amp-control");
   const driverType1 = document.getElementById("driverType1");
   const driverOp1 = document.getElementById("driverOp1");
   const driverValue1 = document.getElementById("driverValue1");
@@ -1573,6 +1574,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
   function updateControlState() {
     document.body.dataset.extremeGrain = extremeGrain.value;
     const view = currentView();
+    driverAmpControl.hidden = !(isPhaseCondition(driverType1.value) || isPhaseCondition(driverType2.value));
     if (view !== "extremes" && monthSelect.value === "all") monthSelect.value = "6";
     monthSelect.disabled = view !== "extremes" && periodSelect.value !== "monthly";
     const driestOption = extremeDirection.querySelector('option[value="driest"]');
