@@ -287,7 +287,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
           <option value="mm">Millimetres</option>
         </select>
       </label>
-      <label class="month-control">Month
+      <label class="month-control">Month / Season
         <select id="monthSelect"></select>
       </label>
       <label class="extreme-control">Grain
@@ -381,7 +381,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
               <option value="absolute">Mean rainfall</option>
             </select>
           </label>
-          <label>Month
+          <label>Month / Season
             <select id="driverMonth"></select>
           </label>
           <label>Condition 1
@@ -467,6 +467,15 @@ body[data-view="drivers"] .extremes-panel{display:none}
 
   const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
   const monthShort = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const allMonths = Array.from({length:12}, (_, index) => index + 1);
+  const seasonGroups = [
+    {value:"djf", label:"DJF", months:[12,1,2], components:[{month:12, yearOffset:-1}, {month:1, yearOffset:0}, {month:2, yearOffset:0}]},
+    {value:"mam", label:"MAM", months:[3,4,5]},
+    {value:"jja", label:"JJA", months:[6,7,8]},
+    {value:"jjas", label:"JJAS", months:[6,7,8,9]},
+    {value:"son", label:"SON", months:[9,10,11]},
+    {value:"ond", label:"OND", months:[10,11,12]},
+  ];
   const years = data.years;
   const regions = data.regions?.list || [{id:"all-india", name:"All India", iso:"IND", cellCount:data.meta.grid.validCellCount}];
   const regionById = new Map(regions.map(region => [region.id, region]));
@@ -510,9 +519,9 @@ body[data-view="drivers"] .extremes-panel{display:none}
 
   const allRegion = regions.find(region => region.id === "all-india") || regions[0];
   regionSelect.innerHTML = regions.map(region => `<option value="${region.id}">${escapeHtml(region.name)}</option>`).join("");
-  monthSelect.innerHTML = `<option value="all">All months</option>` + monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
+  monthSelect.innerHTML = monthGroupOptions(true);
   monthSelect.value = "6";
-  driverMonth.innerHTML = `<option value="all">All months</option>` + monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
+  driverMonth.innerHTML = monthGroupOptions(true);
   driverMonth.value = "9";
 
   const driverTypes = [
@@ -564,8 +573,63 @@ body[data-view="drivers"] .extremes-panel{display:none}
   }
 
   function selectedMonth(defaultMonth = 6) {
-    const value = Number(monthSelect.value);
-    return Number.isFinite(value) && value >= 1 ? value : defaultMonth;
+    return selectedMonthGroup(String(defaultMonth)).months[0];
+  }
+
+  function monthGroupOptions(includeAll = false) {
+    const all = includeAll ? `<option value="all">All months</option>` : "";
+    const months = monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
+    const seasons = seasonGroups.map(group => `<option value="${group.value}">${group.label}</option>`).join("");
+    return `${all}<optgroup label="Months">${months}</optgroup><optgroup label="Seasons">${seasons}</optgroup>`;
+  }
+
+  function monthGroup(value, defaultValue = "6") {
+    if (value && typeof value === "object" && Array.isArray(value.months)) return value;
+    const text = String(value ?? defaultValue);
+    if (text === "all") return {value:"all", label:"all months", title:"All months", months:allMonths, components:allMonths.map(month => ({month, yearOffset:0})), all:true};
+    const month = Number(text);
+    if (Number.isInteger(month) && month >= 1 && month <= 12) {
+      return {value:String(month), label:monthNames[month - 1], title:monthNames[month - 1], months:[month], components:[{month, yearOffset:0}], all:false};
+    }
+    const season = seasonGroups.find(group => group.value === text);
+    if (season) return {...season, title:season.label, components:season.components || season.months.map(month => ({month, yearOffset:0})), all:false};
+    return monthGroup(defaultValue, "6");
+  }
+
+  function selectedMonthGroup(defaultValue = "6") {
+    return monthGroup(monthSelect.value, defaultValue);
+  }
+
+  function driverMonthGroup() {
+    return monthGroup(driverMonth.value, "9");
+  }
+
+  function monthGroupMatches(group, month) {
+    const option = monthGroup(group);
+    return option.all || option.months.includes(month);
+  }
+
+  function monthGroupValueLabel(group) {
+    return monthGroup(group).label;
+  }
+
+  function sumMonthValues(values, group) {
+    const option = monthGroup(group);
+    const selected = option.months.map(month => values?.[month - 1]).filter(value => Number.isFinite(value));
+    return selected.length === option.months.length ? selected.reduce((total, value) => total + value, 0) : NaN;
+  }
+
+  function sumMonthValuesForYear(year, group, id = regionId()) {
+    const option = monthGroup(group);
+    const values = [];
+    for (const component of option.components || option.months.map(month => ({month, yearOffset:0}))) {
+      const componentYear = year + (component.yearOffset || 0);
+      const monthly = monthlyForYear(componentYear, id);
+      const value = monthly?.[component.month - 1];
+      if (!Number.isFinite(value)) return NaN;
+      values.push(value);
+    }
+    return values.reduce((total, value) => total + value, 0);
   }
 
   function rowsForRegion(id = regionId()) {
@@ -751,35 +815,39 @@ body[data-view="drivers"] .extremes-panel{display:none}
     return {year, month:date.getUTCMonth() + 1, day:date.getUTCDate(), date:date.toISOString().slice(0, 10)};
   }
 
-  function periodValue(year, period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+  function periodValue(year, period = periodSelect.value, group = selectedMonthGroup(), id = regionId()) {
     const row = rowForYear(year, id);
     if (period === "annual") return row?.annual_mm;
     if (period === "jjas") return row?.jjas_mm;
-    return monthlyForYear(year, id)[month - 1];
+    return sumMonthValuesForYear(year, group, id);
   }
 
-  function periodNormal(period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+  function periodNormal(period = periodSelect.value, group = selectedMonthGroup(), id = regionId()) {
     if (period === "annual") return baselineMean("annual_mm", id);
     if (period === "jjas") return baselineMean("jjas_mm", id);
-    return monthlyClimatology(id)[month - 1];
+    const values = years
+      .filter(year => year >= baseStart && year <= baseEnd)
+      .map(year => periodValue(year, "monthly", group, id))
+      .filter(value => Number.isFinite(value));
+    return mean(values);
   }
 
-  function periodLabel(period = periodSelect.value, month = selectedMonth()) {
+  function periodLabel(period = periodSelect.value, group = selectedMonthGroup()) {
     if (period === "annual") return "Annual";
     if (period === "jjas") return "JJAS";
-    return monthNames[month - 1];
+    return monthGroup(group).title;
   }
 
-  function periodDateLabel(year, period = periodSelect.value, month = selectedMonth(), date = null) {
+  function periodDateLabel(year, period = periodSelect.value, group = selectedMonthGroup(), date = null) {
     if (period === "daily") return date || `${year}`;
     if (period === "annual") return `${year}`;
     if (period === "jjas") return `JJAS ${year}`;
-    return `${monthNames[month - 1]} ${year}`;
+    return `${monthGroup(group).title} ${year}`;
   }
 
-  function trendStats(period = periodSelect.value, month = selectedMonth(), id = regionId()) {
+  function trendStats(period = periodSelect.value, group = selectedMonthGroup(), id = regionId()) {
     const points = rowsForRegion(id)
-      .map(row => ({year:row.year, value:periodValue(row.year, period, month, id)}))
+      .map(row => ({year:row.year, value:periodValue(row.year, period, group, id)}))
       .filter(point => Number.isFinite(point.value));
     const n = points.length;
     if (n < 3) return null;
@@ -923,14 +991,14 @@ body[data-view="drivers"] .extremes-panel{display:none}
     if (driverCompositeCache.has(`records-${key}`)) return driverCompositeCache.get(`records-${key}`);
     const condition1 = driverCondition(1);
     const condition2 = driverCondition(2);
-    const monthFilter = driverMonth.value === "all" ? null : Number(driverMonth.value);
+    const monthFilter = driverMonthGroup();
     const normals = dailyMonthClimatology();
     const rows = [];
     for (const year of years) {
       const daily = dailyForYear(year);
       for (let index = 0; index < daily.length; index += 1) {
         const parts = dateParts(year, index);
-        if (monthFilter && parts.month !== monthFilter) continue;
+        if (!monthGroupMatches(monthFilter, parts.month)) continue;
         if (!conditionMatches(condition1, parts) || !conditionMatches(condition2, parts)) continue;
         const rain = daily[index];
         const normal = normals[parts.month - 1];
@@ -999,6 +1067,60 @@ body[data-view="drivers"] .extremes-panel{display:none}
     return result;
   }
 
+  function mapCellValue(array, index, scale = 1) {
+    const raw = array[index];
+    return raw === 65535 || !Number.isFinite(raw) ? NaN : raw / scale;
+  }
+
+  function sumMonthlyMapForYear(year, group) {
+    const option = monthGroup(group);
+    const out = new Float32Array(pointCount);
+    const counts = new Uint8Array(pointCount);
+    for (const component of option.components) {
+      const componentYear = year + (component.yearOffset || 0);
+      const maps = data.maps.monthly[String(componentYear)];
+      if (!maps) throw new Error(`${option.title} ${year} needs ${monthNames[component.month - 1]} ${componentYear}, which is outside the archive.`);
+      const array = decodeU16(`monthly-${componentYear}-${component.month}`, maps[component.month - 1], pointCount);
+      for (let i = 0; i < pointCount; i += 1) {
+        if (array[i] === 65535) continue;
+        out[i] += array[i];
+        counts[i] += 1;
+      }
+    }
+    for (let i = 0; i < pointCount; i += 1) {
+      if (counts[i] !== option.components.length) out[i] = NaN;
+    }
+    return out;
+  }
+
+  function climMonthlyMapForGroup(group) {
+    const option = monthGroup(group);
+    const key = `clim-month-group-${option.value}`;
+    if (decoded.has(key)) return decoded.get(key);
+    const sum = new Float64Array(pointCount);
+    const counts = new Uint16Array(pointCount);
+    for (const year of years) {
+      if (year < baseStart || year > baseEnd) continue;
+      let seasonal;
+      try {
+        seasonal = sumMonthlyMapForYear(year, option);
+      } catch {
+        continue;
+      }
+      for (let i = 0; i < pointCount; i += 1) {
+        if (!Number.isFinite(seasonal[i])) continue;
+        sum[i] += seasonal[i];
+        counts[i] += 1;
+      }
+    }
+    const out = new Float32Array(pointCount);
+    for (let i = 0; i < pointCount; i += 1) {
+      out[i] = counts[i] ? sum[i] / counts[i] : NaN;
+    }
+    decoded.set(key, out);
+    return out;
+  }
+
   async function mapArrayForContext(context) {
     if (context.period === "daily") {
       const yearMap = await dailyMapForYear(context.year);
@@ -1006,14 +1128,14 @@ body[data-view="drivers"] .extremes-panel{display:none}
       return {array:yearMap.subarray(start, start + pointCount), scale:10};
     }
     if (context.period === "monthly") {
-      return {array:decodeU16(`monthly-${context.year}-${context.month}`, data.maps.monthly[String(context.year)][context.month - 1], pointCount), scale:1};
+      return {array:sumMonthlyMapForYear(context.year, context.monthGroup || context.month), scale:1};
     }
     return {array:decodeU16(`${context.period}-${context.year}`, data.maps[context.period][String(context.year)], pointCount), scale:1};
   }
 
-  function climArrayForPeriod(period, month) {
+  function climArrayForPeriod(period, month, group = month) {
     if (period === "daily") return {array:decodeU16(`clim-daily-month-${month}`, data.maps.climatologyDailyMonth[month - 1], pointCount), scale:10};
-    if (period === "monthly") return {array:decodeU16(`clim-monthly-${month}`, data.maps.climatologyMonthly[month - 1], pointCount), scale:1};
+    if (period === "monthly") return {array:climMonthlyMapForGroup(group), scale:1};
     const field = period === "annual" ? "climatologyAnnual" : "climatologyJjas";
     return {array:decodeU16(`clim-${period}`, data.maps[field], pointCount), scale:1};
   }
@@ -1025,7 +1147,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
         view,
         period: "composite",
         year: null,
-        month: driverMonth.value === "all" ? null : Number(driverMonth.value),
+        month: driverMonthGroup(),
+        monthGroup: driverMonthGroup(),
         date: null,
         display: driverDisplay.value,
         event: null,
@@ -1033,13 +1156,14 @@ body[data-view="drivers"] .extremes-panel{display:none}
     }
     if (view === "extremes" && selectedExtremeRecord) {
       const period = selectedExtremeRecord.grain === "days" ? "daily" : "monthly";
-      const month = selectedExtremeRecord.month;
+      const month = selectedExtremeRecord.monthGroup || selectedExtremeRecord.month;
       const year = selectedExtremeRecord.year;
       return {
         view,
         period,
         year,
         month,
+        monthGroup:selectedExtremeRecord.monthGroup || month,
         date: selectedExtremeRecord.date || null,
         display: extremeMetric.value === "absolute" ? "absolute" : extremeMetric.value,
         event: selectedExtremeRecord,
@@ -1049,7 +1173,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
       view,
       period: periodSelect.value,
       year: selectedYear(),
-      month: selectedMonth(),
+      month: selectedMonthGroup(),
+      monthGroup:selectedMonthGroup(),
       date: null,
       display: view === "anomaly" ? (anomalyUnit.value === "percent" ? "percentAnomaly" : "anomaly") : "absolute",
       event: null,
@@ -1060,11 +1185,11 @@ body[data-view="drivers"] .extremes-panel{display:none}
     const context = mapContext();
     if (context.view === "drivers") return driverMapValues(context);
     const selected = await mapArrayForContext(context);
-    const clim = climArrayForPeriod(context.period, context.month);
+    const clim = climArrayForPeriod(context.period, monthGroup(context.month).months[0], context.monthGroup || context.month);
     const values = new Float32Array(pointCount);
     for (let i = 0; i < pointCount; i += 1) {
-      const val = selected.array[i] === 65535 ? NaN : selected.array[i] / selected.scale;
-      const norm = clim.array[i] === 65535 ? NaN : clim.array[i] / clim.scale;
+      const val = mapCellValue(selected.array, i, selected.scale);
+      const norm = mapCellValue(clim.array, i, clim.scale);
       if (context.display === "percentAnomaly") values[i] = pctAnomaly(val, norm);
       else values[i] = context.display === "anomaly" && Number.isFinite(val) && Number.isFinite(norm) ? val - norm : val;
     }
@@ -1077,10 +1202,12 @@ body[data-view="drivers"] .extremes-panel{display:none}
       return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#dcc4a2"],[0.5,"#fffaf3"],[0.56,"#c6e0dc"],[1,"#267f86"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
     }
     if (context.display === "anomaly") {
-      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? 600 : context.period === "composite" ? 75 : 180;
+      const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
+      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? (monthCount > 1 ? Math.min(1400, 350 * monthCount) : 600) : context.period === "composite" ? 75 : 180;
       return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#eadbc1"],[0.5,"#fffaf3"],[0.56,"#dceeea"],[1,"#267f86"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
     }
-    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? 1800 : context.period === "composite" ? 80 : 300;
+    const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
+    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? (monthCount > 1 ? 1400 * monthCount : 1800) : context.period === "composite" ? 80 : 300;
     return {min:0, max, stops:[[0,"#f0e7b4"],[0.18,"#b9d9a2"],[0.36,"#5fb8b4"],[0.58,"#2c91b2"],[0.78,"#3158a1"],[1,"#3b1b5a"]], minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
   }
 
@@ -1230,7 +1357,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
     const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
     const descriptor = context.view === "drivers"
-      ? `${context.display === "absolute" ? "Mean rainfall" : anomalyDescriptor}: ${driverMonth.value === "all" ? "all months" : monthNames[context.month - 1]} composite`
+      ? `${context.display === "absolute" ? "Mean rainfall" : anomalyDescriptor}: ${monthGroupValueLabel(context.monthGroup || context.month)} composite`
       : `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month, context.date)}`;
     const region = regionInfo();
     const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
@@ -1249,7 +1376,16 @@ body[data-view="drivers"] .extremes-panel{display:none}
   }
 
   function linePath(points) {
-    return points.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(1)},${point[1].toFixed(1)}`).join(" ");
+    let open = false;
+    return points.map(point => {
+      if (!Number.isFinite(point[0]) || !Number.isFinite(point[1])) {
+        open = false;
+        return "";
+      }
+      const command = open ? "L" : "M";
+      open = true;
+      return `${command}${point[0].toFixed(1)},${point[1].toFixed(1)}`;
+    }).filter(Boolean).join(" ");
   }
 
   function clearSvg(svg) {
@@ -1284,10 +1420,10 @@ body[data-view="drivers"] .extremes-panel{display:none}
     const height = 260;
     svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
     const period = periodSelect.value;
-    const month = selectedMonth();
+    const group = selectedMonthGroup();
     const rows = rowsForRegion();
-    const values = rows.map(row => periodValue(row.year, period, month));
-    const stats = trendStats(period, month);
+    const values = rows.map(row => periodValue(row.year, period, group));
+    const stats = trendStats(period, group);
     const fitted = stats ? rows.map(row => stats.intercept + stats.slope * row.year) : [];
     const selectedIndex = Math.max(0, rows.findIndex(row => row.year === selectedYear()));
     const pad = {l:46, r:12, t:12, b:30};
@@ -1299,11 +1435,13 @@ body[data-view="drivers"] .extremes-panel{display:none}
     const x = index => pad.l + plotW * index / (values.length - 1);
     const y = value => pad.t + plotH - plotH * (value - minY) / ((maxY - minY) || 1);
     drawAxes(svg, pad.l, pad.t, plotW, plotH, minY, maxY);
-    svg.appendChild(svgEl("path", {d:linePath(values.map((value, index) => [x(index), y(value)])), fill:"none", stroke:period === "jjas" ? "#477247" : period === "monthly" ? "#c7375f" : "#1f8fa6", "stroke-width":"2.2"}));
+    svg.appendChild(svgEl("path", {d:linePath(values.map((value, index) => [x(index), y(value)])), fill:"none", stroke:period === "jjas" || (period === "monthly" && group.months.length > 1) ? "#477247" : period === "monthly" ? "#c7375f" : "#1f8fa6", "stroke-width":"2.2"}));
     if (stats) {
       svg.appendChild(svgEl("path", {d:linePath(fitted.map((value, index) => [x(index), y(value)])), fill:"none", stroke:"#2b2136", "stroke-width":"1.6", "stroke-dasharray":"5 4"}));
     }
-    svg.appendChild(svgEl("circle", {cx:x(selectedIndex), cy:y(values[selectedIndex]), r:5, fill:"#c7375f", stroke:"#fff", "stroke-width":"2"}));
+    if (Number.isFinite(values[selectedIndex])) {
+      svg.appendChild(svgEl("circle", {cx:x(selectedIndex), cy:y(values[selectedIndex]), r:5, fill:"#c7375f", stroke:"#fff", "stroke-width":"2"}));
+    }
     [rows[0].year, 1950, 2000, rows[rows.length - 1].year].forEach(year => {
       const index = rows.findIndex(row => row.year === year);
       if (index < 0) return;
@@ -1311,7 +1449,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
       text.textContent = year;
       svg.appendChild(text);
     });
-    document.getElementById("trendHint").textContent = `${periodLabel(period, month)} area-weighted ${regionInfo().name} rainfall totals, mm. ${trendText(stats)}`;
+    document.getElementById("trendHint").textContent = `${periodLabel(period, group)} area-weighted ${regionInfo().name} rainfall totals, mm. ${trendText(stats)}`;
   }
 
   function drawDaily() {
@@ -1380,7 +1518,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
     const condition2 = driverCondition(2);
     const records = driverRecords();
     const summary = driverSummary(records);
-    const monthText = driverMonth.value === "all" ? "all months" : monthNames[Number(driverMonth.value) - 1];
+    const monthText = monthGroupValueLabel(driverMonthGroup());
     document.getElementById("driverHint").textContent = `${monthText}; ${conditionText(condition1)}${condition2.type === "none" ? "" : ` plus ${conditionText(condition2)}`}.`;
     document.getElementById("driverSample").textContent = `${fmt(summary.days, 0)} matching days across ${fmt(summary.years, 0)} years`;
     document.getElementById("driverDescription").textContent = records.length
@@ -1405,7 +1543,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
       const condition1 = driverCondition(1);
       const condition2 = driverCondition(2);
       cardHtml([
-        ["Composite", driverMonth.value === "all" ? "All months" : monthNames[Number(driverMonth.value) - 1], `${conditionText(condition1)}${condition2.type === "none" ? "" : ` + ${conditionText(condition2)}`}`],
+        ["Composite", monthGroup(driverMonthGroup()).title, `${conditionText(condition1)}${condition2.type === "none" ? "" : ` + ${conditionText(condition2)}`}`],
         ["Sample", `${fmt(summary.days, 0)} days`, `${fmt(summary.years, 0)} years represented`],
         ["Mean rainfall", `${fmt(summary.rain, 1)} mm`, `Daily ${regionInfo().name} mean`],
         ["Anomaly", `${signed(summary.anomaly, 1)} mm`, "Against calendar-month daily normal"],
@@ -1415,10 +1553,12 @@ body[data-view="drivers"] .extremes-panel{display:none}
     }
     if (view === "extremes" && selectedExtremeRecord) {
       const row = selectedExtremeRecord;
+      const eventLabel = row.grain === "days" ? "Daily regional mean" : row.grain === "seasons" ? "Seasonal regional total" : "Monthly regional total";
+      const normalLabel = row.grain === "days" ? "calendar-month daily mean" : row.grain === "seasons" ? "seasonal mean" : "monthly mean";
       cardHtml([
         ["Selected event", row.period, `${regionInfo().name}, ranked ${extremeDirection.value} by ${rankedByLabel(extremeMetric.value)}`],
-        ["Rainfall", `${fmt(row.rain_mm, 1)} mm`, row.grain === "days" ? "Daily regional mean" : "Monthly regional total"],
-        ["Normal", `${fmt(row.normal_mm, 1)} mm`, `${data.meta.baseline} ${row.grain === "days" ? "calendar-month daily mean" : "monthly mean"}`],
+        ["Rainfall", `${fmt(row.rain_mm, 1)} mm`, eventLabel],
+        ["Normal", `${fmt(row.normal_mm, 1)} mm`, `${data.meta.baseline} ${normalLabel}`],
         ["Anomaly", `${signed(row.anomaly_mm, 1)} mm`, row.anomaly_mm < 0 ? "Deficit against normal" : "Surplus against normal"],
         ["Anomaly %", `${signed(row.anomaly_pct, 1)}%`, "Departure from normal as a percentage"],
       ]);
@@ -1427,27 +1567,27 @@ body[data-view="drivers"] .extremes-panel{display:none}
 
     const year = selectedYear();
     const period = periodSelect.value;
-    const month = selectedMonth();
-    const value = periodValue(year, period, month);
-    const normal = periodNormal(period, month);
+    const group = selectedMonthGroup();
+    const value = periodValue(year, period, group);
+    const normal = periodNormal(period, group);
     const anomaly = value - normal;
     const anomalyPct = pctAnomaly(value, normal);
     const row = rowForYear(year);
     const region = regionInfo();
     if (currentView() === "trend") {
-      const stats = trendStats(period, month);
+      const stats = trendStats(period, group);
       cardHtml([
-        ["Period", periodLabel(period, month), `${region.name}, ${stats ? `${stats.startYear}-${stats.endYear}` : `${years[0]}-${years[years.length - 1]}`}`],
+        ["Period", periodLabel(period, group), `${region.name}, ${stats ? `${stats.startYear}-${stats.endYear}` : `${years[0]}-${years[years.length - 1]}`}`],
         ["Trend", stats ? `${signed(stats.slopeDecade, 1)} mm/decade` : "n/a", "OLS linear trend"],
         ["p-value", stats ? formatP(stats.p) : "n/a", "Two-sided test for non-zero trend"],
-        ["Selected year", `${fmt(value, 1)} mm`, periodDateLabel(year, period, month)],
+        ["Selected year", `${fmt(value, 1)} mm`, periodDateLabel(year, period, group)],
         ["Normal", `${fmt(normal, 1)} mm`, `${data.meta.baseline} baseline`],
       ]);
       return;
     }
     if (currentView() === "anomaly") {
       cardHtml([
-        ["Period", periodLabel(period, month), periodDateLabel(year, period, month)],
+        ["Period", periodLabel(period, group), periodDateLabel(year, period, group)],
         ["Total", `${fmt(value, 1)} mm`, `Area-weighted ${region.name}`],
         ["Normal", `${fmt(normal, 1)} mm`, `${data.meta.baseline} baseline`],
         ["Anomaly", `${signed(anomaly, 1)} mm`, anomaly < 0 ? "Deficit against normal" : "Surplus against normal"],
@@ -1455,9 +1595,9 @@ body[data-view="drivers"] .extremes-panel{display:none}
       ]);
       return;
     }
-    const stats = trendStats(period, month);
+    const stats = trendStats(period, group);
     cardHtml([
-      ["Period total", `${fmt(value, 1)} mm`, `${periodDateLabel(year, period, month)} in ${region.name}`],
+      ["Period total", `${fmt(value, 1)} mm`, `${periodDateLabel(year, period, group)} in ${region.name}`],
       ["Trend", stats ? `${signed(stats.slopeDecade, 1)} mm/decade` : "n/a", stats ? `${stats.startYear}-${stats.endYear} OLS` : "OLS linear trend"],
       ["p-value", stats ? formatP(stats.p) : "n/a", "Two-sided test for non-zero trend"],
       ["Annual total", `${fmt(row.annual_mm, 0)} mm`, `${signed(row.annual_mm - baselineMean("annual_mm"), 0)} mm vs normal`],
@@ -1487,6 +1627,30 @@ body[data-view="drivers"] .extremes-panel{display:none}
           percent_normal:normal > 0 ? 100 * rain / normal : NaN,
         });
       }
+    }
+    return rows;
+  }
+
+  function seasonalExtremeRecords(id, group) {
+    const option = monthGroup(group);
+    const normal = periodNormal("monthly", option, id);
+    const rows = [];
+    for (const year of years) {
+      const rain = periodValue(year, "monthly", option, id);
+      if (!Number.isFinite(rain) || !Number.isFinite(normal)) continue;
+      rows.push({
+        key:`s-${option.value}-${year}`,
+        grain:"seasons",
+        year,
+        month:option.months[0],
+        monthGroup:option,
+        period:`${option.title} ${year}`,
+        rain_mm:rain,
+        normal_mm:normal,
+        anomaly_mm:rain - normal,
+        anomaly_pct:pctAnomaly(rain, normal),
+        percent_normal:normal > 0 ? 100 * rain / normal : NaN,
+      });
     }
     return rows;
   }
@@ -1525,10 +1689,13 @@ body[data-view="drivers"] .extremes-panel{display:none}
   function rankedExtremeRows() {
     const id = regionId();
     const grain = extremeGrain.value;
-    const monthFilter = monthSelect.value === "all" ? null : Number(monthSelect.value);
+    const monthFilter = selectedMonthGroup("all");
     const metric = extremeMetric.value === "absolute" ? "rain_mm" : extremeMetric.value === "percentAnomaly" ? "anomaly_pct" : "anomaly_mm";
-    const rows = (grain === "days" ? dailyExtremeRecords(id) : monthlyExtremeRecords(id))
-      .filter(row => !monthFilter || row.month === monthFilter)
+    const sourceRows = grain === "days"
+      ? dailyExtremeRecords(id)
+      : (!monthFilter.all && monthFilter.months.length > 1 ? seasonalExtremeRecords(id, monthFilter) : monthlyExtremeRecords(id));
+    const rows = sourceRows
+      .filter(row => monthFilter.all || row.grain === "seasons" || monthFilter.months.includes(row.month))
       .filter(row => Number.isFinite(row[metric]));
     const limit = grain === "days" ? 10 : 30;
     return rows.sort((a, b) => (
@@ -1540,13 +1707,16 @@ body[data-view="drivers"] .extremes-panel{display:none}
     const rows = rankedExtremeRows();
     const region = regionInfo();
     const grain = extremeGrain.value;
-    const monthText = monthSelect.value === "all" ? "all months" : monthNames[Number(monthSelect.value) - 1];
-    const titleGrain = grain === "days" ? "Days" : "Months";
+    const monthFilter = selectedMonthGroup("all");
+    const seasonalRanking = grain !== "days" && !monthFilter.all && monthFilter.months.length > 1;
+    const monthText = monthGroupValueLabel(monthFilter);
+    const titleGrain = grain === "days" ? "Days" : seasonalRanking ? "Seasons" : "Months";
     const direction = extremeDirection.value === "wettest" ? "Wettest" : "Driest";
     document.getElementById("extremeTitle").textContent = `${direction} ${titleGrain}: ${region.name}`;
-    document.getElementById("periodHead").textContent = grain === "days" ? "Date" : "Month";
+    document.getElementById("periodHead").textContent = grain === "days" ? "Date" : seasonalRanking ? "Season" : "Month";
     const rowCount = grain === "days" ? "Top 10" : "Top 30";
-    document.getElementById("extremeHint").textContent = `${rowCount}; filtered to ${monthText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
+    const normalText = grain === "days" ? "calendar-month daily mean" : seasonalRanking ? "seasonal mean" : "monthly mean";
+    document.getElementById("extremeHint").textContent = `${rowCount}; filtered to ${monthText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${normalText}.`;
 
     if (!rows.length) {
       selectedExtremeRecord = null;
