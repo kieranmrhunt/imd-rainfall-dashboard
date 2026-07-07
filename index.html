@@ -86,6 +86,7 @@ h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spac
   align-items:end;
   padding:12px 0;
 }
+body[data-view="drivers"] .control-inner{grid-template-columns:minmax(180px,1fr) minmax(170px,.5fr)}
 label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 select,input[type=range]{font:inherit;color:var(--ink)}
 select{
@@ -111,13 +112,15 @@ input[type=range]{width:100%;accent-color:var(--green)}
 }
 body[data-view="extremes"] .year-control,
 body[data-view="absolute"] .extreme-control,
-body[data-view="trend"] .extreme-control,
 body[data-view="anomaly"] .extreme-control,
+body[data-view="drivers"] .extreme-control,
 body[data-view="absolute"] .anomaly-control,
-body[data-view="trend"] .anomaly-control,
 body[data-view="extremes"] .anomaly-control,
-body[data-view="extremes"] .period-control{display:none}
-body:not([data-extreme-grain="days"]) .day-control{display:none}
+body[data-view="drivers"] .anomaly-control,
+body[data-view="extremes"] .period-control,
+body[data-view="drivers"] .period-control,
+body[data-view="drivers"] .year-control,
+body[data-view="drivers"] .month-control{display:none}
 main{padding:18px 0 34px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px;margin:14px 0}
 .card,.panel{
@@ -200,21 +203,28 @@ tbody tr.is-selected{background:rgba(199,55,95,.1)}
   border:1px solid var(--line2);
   border-radius:6px;
 }
-body[data-view="trend"] .map-panel,
-body[data-view="trend"] .daily-panel,
-body[data-view="trend"] .monthly-panel,
-body[data-view="trend"] .extremes-panel,
-body[data-view="absolute"] .trend-panel,
 body[data-view="absolute"] .extremes-panel,
+body[data-view="absolute"] .drivers-panel,
 body[data-view="anomaly"] .trend-panel,
 body[data-view="anomaly"] .daily-panel,
 body[data-view="anomaly"] .extremes-panel,
+body[data-view="anomaly"] .drivers-panel,
 body[data-view="extremes"] .trend-panel,
 body[data-view="extremes"] .daily-panel,
-body[data-view="extremes"] .monthly-panel{display:none}
-body[data-view="trend"] .grid{grid-template-columns:1fr}
+body[data-view="extremes"] .monthly-panel,
+body[data-view="extremes"] .drivers-panel,
+body[data-view="drivers"] .trend-panel,
+body[data-view="drivers"] .daily-panel,
+body[data-view="drivers"] .monthly-panel,
+body[data-view="drivers"] .extremes-panel{display:none}
+.driver-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
+.driver-form label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.driver-form select{width:100%}
+.driver-summary{margin-top:12px;display:grid;gap:8px;font-size:13px;color:var(--muted)}
+.driver-summary strong{color:var(--ink)}
 @media (max-width:1180px){
   .control-inner{grid-template-columns:1fr 1fr 1fr}
+  .driver-form{grid-template-columns:1fr 1fr}
 }
 @media (max-width:980px){
   .grid{grid-template-columns:1fr}
@@ -228,6 +238,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   h1{font-size:30px}
   .standfirst{font-size:16px;max-width:32ch}
   .control-inner{grid-template-columns:1fr}
+  .driver-form{grid-template-columns:1fr}
   .kpis{grid-template-columns:repeat(2,minmax(0,1fr))}
   .panel{padding:11px}
   .map-wrap{min-height:400px}
@@ -243,7 +254,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   <div class="wrap">
     <div class="eyebrow">India Meteorological Department gridded rainfall</div>
     <h1>Daily Rainfall Dashboard</h1>
-    <p class="standfirst">Explore absolute totals, trends, anomalies, and ranked wet or dry events from the IMD 0.25 degree daily rainfall archive.</p>
+    <p class="standfirst">Explore rainfall totals, trends, anomalies, ranked events, and climate-mode composites from the IMD 0.25 degree daily rainfall archive.</p>
   </div>
 </header>
 
@@ -251,9 +262,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   <div class="wrap">
     <div class="view-tabs" role="tablist" aria-label="Dashboard view">
       <button class="view-tab" type="button" data-view-target="absolute" aria-selected="true">Absolute</button>
-      <button class="view-tab" type="button" data-view-target="trend" aria-selected="false">Trend</button>
       <button class="view-tab" type="button" data-view-target="anomaly" aria-selected="false">Anomaly</button>
       <button class="view-tab" type="button" data-view-target="extremes" aria-selected="false">Extremes</button>
+      <button class="view-tab" type="button" data-view-target="drivers" aria-selected="false">Forcings</button>
     </div>
     <div class="control-inner">
       <label class="year-control">Year
@@ -297,9 +308,6 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
           <option value="anomaly">mm anomaly</option>
           <option value="absolute">Absolute</option>
         </select>
-      </label>
-      <label class="extreme-control day-control">Day
-        <select id="daySelect"></select>
       </label>
     </div>
   </div>
@@ -357,6 +365,57 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
         </div>
         <svg id="monthlySvg" role="img" aria-label="Monthly rainfall profile"></svg>
       </div>
+
+      <div class="panel drivers-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Forcings / Teleconnections</h2>
+            <p class="hint" id="driverHint"></p>
+          </div>
+        </div>
+        <div class="driver-form">
+          <label>Composite
+            <select id="driverDisplay">
+              <option value="anomaly">Mean anomaly</option>
+              <option value="percentAnomaly">Mean % anomaly</option>
+              <option value="absolute">Mean rainfall</option>
+            </select>
+          </label>
+          <label>Month
+            <select id="driverMonth"></select>
+          </label>
+          <label>Phase amp
+            <select id="driverAmp">
+              <option value="1">>= 1.0</option>
+              <option value="0.5">>= 0.5</option>
+              <option value="0">Any</option>
+              <option value="1.5">>= 1.5</option>
+            </select>
+          </label>
+          <label>Condition 1
+            <select id="driverType1"></select>
+          </label>
+          <label>Operator 1
+            <select id="driverOp1"></select>
+          </label>
+          <label>Value 1
+            <select id="driverValue1"></select>
+          </label>
+          <label>Condition 2
+            <select id="driverType2"></select>
+          </label>
+          <label>Operator 2
+            <select id="driverOp2"></select>
+          </label>
+          <label>Value 2
+            <select id="driverValue2"></select>
+          </label>
+        </div>
+        <div class="driver-summary">
+          <div><strong id="driverSample">No composite selected</strong></div>
+          <div id="driverDescription"></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -380,15 +439,18 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     <div><strong>Boundaries:</strong> geoBoundaries India ADM0 and ADM1 geometries, simplified for browser rendering.</div>
     <div><strong>Citation:</strong> Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.</div>
     <div><strong>Method:</strong> region totals are area-weighted with cosine-latitude weights over valid IMD grid cells. State and union territory boundaries use geoBoundaries ADM1 geometries. Day rankings compare against the selected region's baseline mean daily rainfall for that calendar month; month rankings compare against the baseline monthly mean. Percentage anomaly is 100 x (rainfall - normal) / normal.</div>
+    <div><strong>Climate modes:</strong> MJO and BSISO phases use IPRC 25-90 day filtered daily PC indices; ENSO, IOD and NAO thresholds use monthly anomaly/index series from the bundled NOAA/PSL-style climate index archive.</div>
   </section>
 </main>
 
 <script src="data/dashboard_data.js?v=20260707-daily-maps"></script>
+<script src="data/climate_indices.js?v=20260707-drivers"></script>
 <script src="assets/india_adm0_simplified.js?v=20260707-daily-maps"></script>
 <script src="assets/india_adm1_simplified.js?v=20260707-daily-maps"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
+  const climate = window.IMD_CLIMATE_INDICES;
   const boundary = window.INDIA_BOUNDARY;
   const stateBoundary = window.INDIA_STATE_BOUNDARIES;
   const error = document.getElementById("error");
@@ -417,7 +479,15 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   const extremeGrain = document.getElementById("extremeGrain");
   const extremeDirection = document.getElementById("extremeDirection");
   const extremeMetric = document.getElementById("extremeMetric");
-  const daySelect = document.getElementById("daySelect");
+  const driverMonth = document.getElementById("driverMonth");
+  const driverDisplay = document.getElementById("driverDisplay");
+  const driverAmp = document.getElementById("driverAmp");
+  const driverType1 = document.getElementById("driverType1");
+  const driverOp1 = document.getElementById("driverOp1");
+  const driverValue1 = document.getElementById("driverValue1");
+  const driverType2 = document.getElementById("driverType2");
+  const driverOp2 = document.getElementById("driverOp2");
+  const driverValue2 = document.getElementById("driverValue2");
   const kpis = document.getElementById("kpis");
   const canvas = document.getElementById("mapCanvas");
   const tooltip = document.getElementById("tooltip");
@@ -426,6 +496,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   const decoded = new Map();
   const dailyCache = new Map();
   const dailyMapCache = new Map();
+  const driverCompositeCache = new Map();
   let mapPixels = [];
   let mapDrawToken = 0;
   let selectedExtremeKey = "";
@@ -440,7 +511,22 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   regionSelect.innerHTML = regions.map(region => `<option value="${region.id}">${escapeHtml(region.name)}</option>`).join("");
   monthSelect.innerHTML = `<option value="all">All months</option>` + monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
   monthSelect.value = "6";
-  daySelect.innerHTML = `<option value="all">Any day</option>` + Array.from({length:31}, (_, index) => `<option value="${index + 1}">${index + 1}</option>`).join("");
+  driverMonth.innerHTML = `<option value="all">All months</option>` + monthNames.map((name, index) => `<option value="${index + 1}">${name}</option>`).join("");
+  driverMonth.value = "9";
+
+  const driverTypes = [
+    ["none", "None"],
+    ["mjo", "MJO phase"],
+    ["bsiso", "BSISO phase"],
+    ["nino34", "ENSO Nino 3.4"],
+    ["oni", "ONI"],
+    ["dmi", "IOD DMI"],
+    ["nao", "NAO"],
+  ];
+  driverType1.innerHTML = driverTypes.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  driverType2.innerHTML = driverTypes.map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+  driverType1.value = "nino34";
+  driverType2.value = "dmi";
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, char => ({
@@ -733,6 +819,185 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return `Linear trend ${stats.startYear}-${stats.endYear}: ${signed(stats.slopeDecade, 1)} mm/decade; p=${formatP(stats.p)}.`;
   }
 
+  function isPhaseCondition(type) {
+    return type === "mjo" || type === "bsiso";
+  }
+
+  function driverTypeLabel(type) {
+    return (driverTypes.find(item => item[0] === type) || ["", "None"])[1];
+  }
+
+  function populateDriverCondition(typeEl, opEl, valueEl) {
+    const type = typeEl.value;
+    const previousOp = opEl.value;
+    const previousValue = valueEl.value;
+    if (type === "none") {
+      opEl.innerHTML = `<option value="any">Any</option>`;
+      valueEl.innerHTML = `<option value="any">Any</option>`;
+      opEl.disabled = true;
+      valueEl.disabled = true;
+      return;
+    }
+    opEl.disabled = false;
+    valueEl.disabled = false;
+    if (isPhaseCondition(type)) {
+      opEl.innerHTML = `<option value="eq">Phase</option>`;
+      valueEl.innerHTML = Array.from({length:8}, (_, index) => `<option value="${index + 1}">${index + 1}</option>`).join("");
+      valueEl.value = Array.from(valueEl.options).some(option => option.value === previousValue) ? previousValue : "5";
+      return;
+    }
+    opEl.innerHTML = [
+      ["gt", ">"],
+      ["gte", ">="],
+      ["lt", "<"],
+      ["lte", "<="],
+    ].map(([value, label]) => `<option value="${value}">${label}</option>`).join("");
+    valueEl.innerHTML = [-2, -1.5, -1, -0.5, 0, 0.5, 1, 1.5, 2]
+      .map(value => `<option value="${value}">${value}</option>`)
+      .join("");
+    opEl.value = Array.from(opEl.options).some(option => option.value === previousOp) ? previousOp : "gt";
+    valueEl.value = Array.from(valueEl.options).some(option => option.value === previousValue) ? previousValue : "1";
+  }
+
+  function initialiseDriverControls() {
+    populateDriverCondition(driverType1, driverOp1, driverValue1);
+    populateDriverCondition(driverType2, driverOp2, driverValue2);
+    driverOp1.value = "lt";
+    driverValue1.value = "0";
+    driverOp2.value = "gt";
+    driverValue2.value = "0";
+  }
+
+  function driverCondition(slot) {
+    const typeEl = slot === 1 ? driverType1 : driverType2;
+    const opEl = slot === 1 ? driverOp1 : driverOp2;
+    const valueEl = slot === 1 ? driverValue1 : driverValue2;
+    return {type:typeEl.value, op:opEl.value, value:valueEl.value};
+  }
+
+  function compareValue(value, op, threshold) {
+    if (!Number.isFinite(value) || !Number.isFinite(threshold)) return false;
+    if (op === "gt") return value > threshold;
+    if (op === "gte") return value >= threshold;
+    if (op === "lt") return value < threshold;
+    if (op === "lte") return value <= threshold;
+    return false;
+  }
+
+  function conditionMatches(condition, parts) {
+    if (condition.type === "none") return true;
+    if (isPhaseCondition(condition.type)) {
+      const daily = climate?.daily?.[condition.type]?.[parts.date];
+      if (!daily) return false;
+      return Number(daily[0]) === Number(condition.value) && Number(daily[1]) >= Number(driverAmp.value);
+    }
+    const value = climate?.monthly?.[condition.type]?.[`${parts.year}-${String(parts.month).padStart(2, "0")}`];
+    return compareValue(Number(value), condition.op, Number(condition.value));
+  }
+
+  function conditionText(condition) {
+    if (condition.type === "none") return "None";
+    if (isPhaseCondition(condition.type)) return `${driverTypeLabel(condition.type)} ${condition.value}, amp >= ${driverAmp.value}`;
+    const symbol = {gt:">", gte:">=", lt:"<", lte:"<="}[condition.op] || condition.op;
+    return `${driverTypeLabel(condition.type)} ${symbol} ${condition.value}`;
+  }
+
+  function driverSelectionKey() {
+    return [
+      regionId(),
+      driverMonth.value,
+      driverDisplay.value,
+      driverAmp.value,
+      driverType1.value,
+      driverOp1.value,
+      driverValue1.value,
+      driverType2.value,
+      driverOp2.value,
+      driverValue2.value,
+    ].join("|");
+  }
+
+  function driverRecords() {
+    const key = driverSelectionKey();
+    if (driverCompositeCache.has(`records-${key}`)) return driverCompositeCache.get(`records-${key}`);
+    const condition1 = driverCondition(1);
+    const condition2 = driverCondition(2);
+    const monthFilter = driverMonth.value === "all" ? null : Number(driverMonth.value);
+    const normals = dailyMonthClimatology();
+    const rows = [];
+    for (const year of years) {
+      const daily = dailyForYear(year);
+      for (let index = 0; index < daily.length; index += 1) {
+        const parts = dateParts(year, index);
+        if (monthFilter && parts.month !== monthFilter) continue;
+        if (!conditionMatches(condition1, parts) || !conditionMatches(condition2, parts)) continue;
+        const rain = daily[index];
+        const normal = normals[parts.month - 1];
+        if (!Number.isFinite(rain) || !Number.isFinite(normal)) continue;
+        rows.push({year, index, month:parts.month, date:parts.date, rain_mm:rain, normal_mm:normal});
+      }
+    }
+    driverCompositeCache.set(`records-${key}`, rows);
+    return rows;
+  }
+
+  function driverSummary(records = driverRecords()) {
+    const yearsSeen = new Set(records.map(row => row.year));
+    const rain = mean(records.map(row => row.rain_mm));
+    const normal = mean(records.map(row => row.normal_mm));
+    return {
+      days: records.length,
+      years: yearsSeen.size,
+      rain,
+      normal,
+      anomaly: rain - normal,
+      anomalyPct: pctAnomaly(rain, normal),
+      first: records[0]?.date || "n/a",
+      last: records[records.length - 1]?.date || "n/a",
+    };
+  }
+
+  async function driverMapValues(context) {
+    const key = `map-${driverSelectionKey()}`;
+    if (driverCompositeCache.has(key)) return driverCompositeCache.get(key);
+    const records = driverRecords();
+    if (!records.length) throw new Error("No dates match the selected climate-mode filters.");
+    const sum = new Float64Array(pointCount);
+    const normSum = new Float64Array(pointCount);
+    const count = new Uint32Array(pointCount);
+    const climByMonth = new Map();
+    const mapsByYear = new Map();
+    for (const record of records) {
+      if (!mapsByYear.has(record.year)) mapsByYear.set(record.year, await dailyMapForYear(record.year));
+      if (!climByMonth.has(record.month)) climByMonth.set(record.month, climArrayForPeriod("daily", record.month));
+      const yearMap = mapsByYear.get(record.year);
+      const clim = climByMonth.get(record.month);
+      const start = record.index * pointCount;
+      for (let i = 0; i < pointCount; i += 1) {
+        const raw = yearMap[start + i];
+        const normRaw = clim.array[i];
+        if (raw === 65535 || normRaw === 65535) continue;
+        sum[i] += raw / 10;
+        normSum[i] += normRaw / clim.scale;
+        count[i] += 1;
+      }
+    }
+    const values = new Float32Array(pointCount);
+    for (let i = 0; i < pointCount; i += 1) {
+      if (!count[i]) {
+        values[i] = NaN;
+        continue;
+      }
+      const val = sum[i] / count[i];
+      const norm = normSum[i] / count[i];
+      if (context.display === "percentAnomaly") values[i] = pctAnomaly(val, norm);
+      else values[i] = context.display === "anomaly" ? val - norm : val;
+    }
+    const result = {values, context:{...context, summary:driverSummary(records)}};
+    driverCompositeCache.set(key, result);
+    return result;
+  }
+
   async function mapArrayForContext(context) {
     if (context.period === "daily") {
       const yearMap = await dailyMapForYear(context.year);
@@ -754,6 +1019,17 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
   function mapContext() {
     const view = currentView();
+    if (view === "drivers") {
+      return {
+        view,
+        period: "composite",
+        year: null,
+        month: driverMonth.value === "all" ? null : Number(driverMonth.value),
+        date: null,
+        display: driverDisplay.value,
+        event: null,
+      };
+    }
     if (view === "extremes" && selectedExtremeRecord) {
       const period = selectedExtremeRecord.grain === "days" ? "daily" : "monthly";
       const month = selectedExtremeRecord.month;
@@ -781,6 +1057,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
   async function mapValues() {
     const context = mapContext();
+    if (context.view === "drivers") return driverMapValues(context);
     const selected = await mapArrayForContext(context);
     const clim = climArrayForPeriod(context.period, context.month);
     const values = new Float32Array(pointCount);
@@ -795,14 +1072,14 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
   function colourStops(context) {
     if (context.display === "percentAnomaly") {
-      const limit = 100;
-      return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.28,"#d7b487"],[0.48,"#f8f2e8"],[0.5,"#fffaf3"],[0.52,"#edf7f3"],[0.72,"#7cc8bf"],[1,"#006d77"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
+      const max = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
+      return {min:-100, max, stops:[[0,"#a87545"],[0.28,"#dcc4a2"],[0.5,"#fffaf3"],[0.72,"#c6e0dc"],[1,"#267f86"]], minLabel:"-100%", maxLabel:`+${max}%`, unit:"%"};
     }
     if (context.display === "anomaly") {
-      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? 600 : 120;
-      return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.45,"#f2e7cf"],[0.5,"#fffaf3"],[0.55,"#d8efe9"],[1,"#146f7a"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
+      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? 600 : context.period === "composite" ? 75 : 180;
+      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#eadbc1"],[0.5,"#fffaf3"],[0.56,"#dceeea"],[1,"#267f86"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
     }
-    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? 1800 : 300;
+    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? 1800 : context.period === "composite" ? 80 : 300;
     return {min:0, max, stops:[[0,"#f0e7b4"],[0.18,"#b9d9a2"],[0.36,"#5fb8b4"],[0.58,"#2c91b2"],[0.78,"#3158a1"],[1,"#3b1b5a"]], minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
   }
 
@@ -920,7 +1197,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       ({values, context} = await mapValues());
     } catch (mapError) {
       console.warn("Map data could not be drawn", mapError);
-      showMapMessage("Map data is out of date. Reload this page to fetch the latest map files.");
+      showMapMessage(mapError?.message || "Map data is out of date. Reload this page to fetch the latest map files.");
       return;
     }
     if (token !== mapDrawToken) return;
@@ -951,11 +1228,18 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     document.getElementById("legendMax").textContent = scale.maxLabel;
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
     const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
-    const descriptor = `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month, context.date)}`;
+    const descriptor = context.view === "drivers"
+      ? `${context.display === "absolute" ? "Mean rainfall" : anomalyDescriptor}: ${driverMonth.value === "all" ? "all months" : monthNames[context.month - 1]} composite`
+      : `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month, context.date)}`;
     const region = regionInfo();
     const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
-    document.getElementById("mapTitle").textContent = context.display === "absolute" ? "Gridded Rainfall Total" : context.display === "percentAnomaly" ? "Gridded Rainfall Percentage Anomaly" : "Gridded Rainfall Anomaly";
-    if (context.view === "extremes" && context.event) {
+    document.getElementById("mapTitle").textContent = context.view === "drivers"
+      ? "Climate-Mode Rainfall Composite"
+      : context.display === "absolute" ? "Gridded Rainfall Total" : context.display === "percentAnomaly" ? "Gridded Rainfall Percentage Anomaly" : "Gridded Rainfall Anomaly";
+    if (context.view === "drivers") {
+      const summary = context.summary;
+      document.getElementById("mapHint").textContent = `${descriptor}. ${summary.days} matching days across ${summary.years} years. ${regionHint} Baseline: ${data.meta.baseline}.`;
+    } else if (context.view === "extremes" && context.event) {
       const grainText = context.event.grain === "days" ? context.event.date : context.event.period;
       document.getElementById("mapHint").textContent = `${descriptor}. Selected extreme: ${grainText}. ${regionHint} Baseline: ${data.meta.baseline}.`;
     } else {
@@ -1089,6 +1373,20 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     document.getElementById("monthlyHint").textContent = `${regionInfo().name}, ${year}, against the ${data.meta.baseline} monthly climatology.`;
   }
 
+  function drawDriversPanel() {
+    if (currentView() !== "drivers") return;
+    const condition1 = driverCondition(1);
+    const condition2 = driverCondition(2);
+    const records = driverRecords();
+    const summary = driverSummary(records);
+    const monthText = driverMonth.value === "all" ? "all months" : monthNames[Number(driverMonth.value) - 1];
+    document.getElementById("driverHint").textContent = `${monthText}; ${conditionText(condition1)}${condition2.type === "none" ? "" : ` plus ${conditionText(condition2)}`}.`;
+    document.getElementById("driverSample").textContent = `${fmt(summary.days, 0)} matching days across ${fmt(summary.years, 0)} years`;
+    document.getElementById("driverDescription").textContent = records.length
+      ? `Mean ${regionInfo().name} rainfall ${fmt(summary.rain, 1)} mm/day; anomaly ${signed(summary.anomaly, 1)} mm/day (${signed(summary.anomalyPct, 1)}%). Dates ${summary.first} to ${summary.last}.`
+      : "No dates match these filters. Relax a threshold or choose a different month.";
+  }
+
   function cardHtml(cards) {
     kpis.innerHTML = cards.map(card => `
       <article class="card">
@@ -1101,6 +1399,19 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
 
   function drawKpis() {
     const view = currentView();
+    if (view === "drivers") {
+      const summary = driverSummary();
+      const condition1 = driverCondition(1);
+      const condition2 = driverCondition(2);
+      cardHtml([
+        ["Composite", driverMonth.value === "all" ? "All months" : monthNames[Number(driverMonth.value) - 1], `${conditionText(condition1)}${condition2.type === "none" ? "" : ` + ${conditionText(condition2)}`}`],
+        ["Sample", `${fmt(summary.days, 0)} days`, `${fmt(summary.years, 0)} years represented`],
+        ["Mean rainfall", `${fmt(summary.rain, 1)} mm`, `Daily ${regionInfo().name} mean`],
+        ["Anomaly", `${signed(summary.anomaly, 1)} mm`, "Against calendar-month daily normal"],
+        ["Anomaly %", `${signed(summary.anomalyPct, 1)}%`, "Departure from normal"],
+      ]);
+      return;
+    }
     if (view === "extremes" && selectedExtremeRecord) {
       const row = selectedExtremeRecord;
       cardHtml([
@@ -1143,12 +1454,13 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       ]);
       return;
     }
+    const stats = trendStats(period, month);
     cardHtml([
       ["Period total", `${fmt(value, 1)} mm`, `${periodDateLabel(year, period, month)} in ${region.name}`],
+      ["Trend", stats ? `${signed(stats.slopeDecade, 1)} mm/decade` : "n/a", stats ? `${stats.startYear}-${stats.endYear} OLS` : "OLS linear trend"],
+      ["p-value", stats ? formatP(stats.p) : "n/a", "Two-sided test for non-zero trend"],
       ["Annual total", `${fmt(row.annual_mm, 0)} mm`, `${signed(row.annual_mm - baselineMean("annual_mm"), 0)} mm vs normal`],
       ["JJAS total", `${fmt(row.jjas_mm, 0)} mm`, `${signed(row.jjas_mm - baselineMean("jjas_mm"), 0)} mm vs normal`],
-      ["Valid cells", `${fmt(row.valid_cells || region.cellCount, 0)}`, "IMD grid cells in selected region"],
-      ["Wet rank", `#${row.wet_rank}`, `Wettest day ${row.wettest_day}: ${fmt(row.wettest_day_mean_mm, 1)} mm`],
     ]);
   }
 
@@ -1213,11 +1525,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const id = regionId();
     const grain = extremeGrain.value;
     const monthFilter = monthSelect.value === "all" ? null : Number(monthSelect.value);
-    const dayFilter = daySelect.value === "all" ? null : Number(daySelect.value);
     const metric = extremeMetric.value === "absolute" ? "rain_mm" : extremeMetric.value === "percentAnomaly" ? "anomaly_pct" : "anomaly_mm";
     const rows = (grain === "days" ? dailyExtremeRecords(id) : monthlyExtremeRecords(id))
       .filter(row => !monthFilter || row.month === monthFilter)
-      .filter(row => grain !== "days" || !dayFilter || row.day === dayFilter)
       .filter(row => Number.isFinite(row[metric]));
     const limit = grain === "days" ? 10 : 30;
     return rows.sort((a, b) => (
@@ -1230,13 +1540,12 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const region = regionInfo();
     const grain = extremeGrain.value;
     const monthText = monthSelect.value === "all" ? "all months" : monthNames[Number(monthSelect.value) - 1];
-    const dayText = grain === "days" && daySelect.value !== "all" ? ` ${daySelect.value}` : "";
     const titleGrain = grain === "days" ? "Days" : "Months";
     const direction = extremeDirection.value === "wettest" ? "Wettest" : "Driest";
     document.getElementById("extremeTitle").textContent = `${direction} ${titleGrain}: ${region.name}`;
     document.getElementById("periodHead").textContent = grain === "days" ? "Date" : "Month";
     const rowCount = grain === "days" ? "Top 10" : "Top 30";
-    document.getElementById("extremeHint").textContent = `${rowCount}; filtered to ${monthText}${dayText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
+    document.getElementById("extremeHint").textContent = `${rowCount}; filtered to ${monthText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
 
     if (!rows.length) {
       selectedExtremeRecord = null;
@@ -1266,13 +1575,12 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const view = currentView();
     if (view !== "extremes" && monthSelect.value === "all") monthSelect.value = "6";
     monthSelect.disabled = view !== "extremes" && periodSelect.value !== "monthly";
-    if (view === "extremes" && extremeGrain.value === "days") {
-      if (monthSelect.value === "all") monthSelect.value = "6";
-      daySelect.disabled = false;
-    } else {
-      daySelect.value = "all";
-      daySelect.disabled = true;
+    const driestOption = extremeDirection.querySelector('option[value="driest"]');
+    if (driestOption) {
+      driestOption.disabled = view === "extremes" && extremeGrain.value === "days";
+      if (driestOption.disabled && extremeDirection.value === "driest") extremeDirection.value = "wettest";
     }
+    if (view === "extremes" && extremeGrain.value === "days" && monthSelect.value === "all") monthSelect.value = "6";
   }
 
   function update() {
@@ -1280,6 +1588,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     yearValue.textContent = slider.value;
     if (currentView() === "extremes") drawExtremesTable();
     drawKpis();
+    drawDriversPanel();
     drawMap();
     drawTrend();
     drawDaily();
@@ -1332,9 +1641,18 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   extremeGrain.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
   extremeDirection.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
   extremeMetric.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
-  daySelect.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
+  driverMonth.addEventListener("change", update);
+  driverDisplay.addEventListener("change", update);
+  driverAmp.addEventListener("change", update);
+  driverType1.addEventListener("change", () => { populateDriverCondition(driverType1, driverOp1, driverValue1); update(); });
+  driverType2.addEventListener("change", () => { populateDriverCondition(driverType2, driverOp2, driverValue2); update(); });
+  driverOp1.addEventListener("change", update);
+  driverOp2.addEventListener("change", update);
+  driverValue1.addEventListener("change", update);
+  driverValue2.addEventListener("change", update);
   window.addEventListener("resize", () => { drawMap(); drawTrend(); drawDaily(); drawMonthly(); });
 
+  initialiseDriverControls();
   update();
 })();
 </script>
