@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import base64
 import calendar
+import gzip
 import json
 import unicodedata
 from dataclasses import dataclass
@@ -37,6 +38,7 @@ class StateInfo:
 @dataclass(frozen=True)
 class YearProduct:
     year: int
+    raw_path: Path
     dates: pd.DatetimeIndex
     daily_mean: np.ndarray
     state_daily: np.ndarray
@@ -211,6 +213,7 @@ def process_year(path: Path, year: int, weights: np.ndarray, states: list[StateI
 
     return YearProduct(
         year=year,
+        raw_path=path,
         dates=dates,
         daily_mean=daily_mean.astype(np.float32),
         state_daily=state_daily,
@@ -252,6 +255,23 @@ def nanmean_stack(arrays: list[np.ndarray]) -> np.ndarray:
     out = np.full(totals.shape, np.nan, dtype=np.float64)
     np.divide(totals, counts, out=out, where=counts > 0)
     return out
+
+
+def write_daily_map_assets(products: list[YearProduct], valid_points: np.ndarray, out_dir: Path) -> None:
+    daily_dir = out_dir / "daily_maps"
+    daily_dir.mkdir(parents=True, exist_ok=True)
+    for product in products:
+        arr = np.memmap(
+            product.raw_path,
+            dtype="<f4",
+            mode="r",
+            shape=(days_in_year(product.year), NLAT, NLON),
+        )
+        values = np.asarray(arr[:, valid_points])
+        valid = np.isfinite(values) & (values > MISSING / 2.0)
+        scaled = np.where(valid, np.rint(np.maximum(values, 0.0) * 10.0), UINT16_MISSING)
+        raw = np.clip(scaled, 0, UINT16_MISSING).astype("<u2", copy=False).tobytes()
+        (daily_dir / f"rainfall_{product.year}.u16.gz").write_bytes(gzip.compress(raw, compresslevel=9))
 
 
 def month_days(year: int, month: int) -> int:
@@ -383,9 +403,14 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
         nanmean_stack([p.monthly_grids[month_index] for p in baseline])
         for month_index in range(12)
     ]
+    clim_daily_monthly = [
+        clim_monthly[month_index] / month_days(2001, month_index + 1)
+        for month_index in range(12)
+    ]
     valid_points = np.isfinite(clim_annual)
     valid_lons = lon2d[valid_points]
     valid_lats = lat2d[valid_points]
+    write_daily_map_assets(products, valid_points, out_dir)
 
     annual_maps: dict[str, str] = {}
     jjas_maps: dict[str, str] = {}
@@ -515,6 +540,8 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
             "generated": pd.Timestamp.now("UTC").strftime("%Y-%m-%d %H:%M UTC"),
             "mapEncoding": "uint16 little-endian base64, units mm, 65535 missing",
             "dailyEncoding": "uint16 little-endian base64, units tenths of mm",
+            "dailyMapEncoding": "gzip uint16 little-endian, units tenths of mm, 65535 missing",
+            "dailyMapPathTemplate": "data/daily_maps/rainfall_{year}.u16.gz",
             "stateBoundarySource": "geoBoundaries IND ADM1 simplified",
         },
         "years": years,
@@ -530,6 +557,10 @@ def build_data(products: list[YearProduct], boundary_path: Path, state_boundary_
             "climatologyJjas": encode_uint16(clim_jjas[valid_points]),
             "climatologyMonthly": [
                 encode_uint16(clim_monthly[month_index][valid_points])
+                for month_index in range(12)
+            ],
+            "climatologyDailyMonth": [
+                encode_uint16(clim_daily_monthly[month_index][valid_points], scale=10.0)
                 for month_index in range(12)
             ],
         },

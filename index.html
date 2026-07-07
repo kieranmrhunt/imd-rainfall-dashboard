@@ -383,9 +383,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   </section>
 </main>
 
-<script src="data/dashboard_data.js?v=20260705-trend-palette"></script>
-<script src="assets/india_adm0_simplified.js?v=20260705-trend-palette"></script>
-<script src="assets/india_adm1_simplified.js?v=20260705-trend-palette"></script>
+<script src="data/dashboard_data.js?v=20260707-daily-maps"></script>
+<script src="assets/india_adm0_simplified.js?v=20260707-daily-maps"></script>
+<script src="assets/india_adm1_simplified.js?v=20260707-daily-maps"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
@@ -397,9 +397,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     error.textContent = "Dashboard data has not been generated yet. Run scripts/process_imd_rainfall.py after downloading the IMD files.";
     return;
   }
-  if (!data.maps?.monthly || !data.maps?.climatologyMonthly || !data.regions?.dailyMonthClimatology) {
+  if (!data.maps?.monthly || !data.maps?.climatologyMonthly || !data.maps?.climatologyDailyMonth || !data.regions?.dailyMonthClimatology) {
     error.hidden = false;
-    error.textContent = "The dashboard data cached by this browser is out of date. Reload the page once to fetch the current monthly map data.";
+    error.textContent = "The dashboard data cached by this browser is out of date. Reload the page once to fetch the current daily map data.";
     return;
   }
 
@@ -425,7 +425,9 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
   const pointCount = data.points.lon.length;
   const decoded = new Map();
   const dailyCache = new Map();
+  const dailyMapCache = new Map();
   let mapPixels = [];
+  let mapDrawToken = 0;
   let selectedExtremeKey = "";
   let selectedExtremeRecord = null;
 
@@ -598,6 +600,42 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return arr;
   }
 
+  async function gzipArrayBuffer(buffer) {
+    if (!(buffer instanceof ArrayBuffer)) return buffer;
+    const bytes = new Uint8Array(buffer);
+    if (bytes[0] !== 0x1f || bytes[1] !== 0x8b) return buffer;
+    if (!("DecompressionStream" in window)) {
+      throw new Error("This browser cannot decompress daily rainfall map assets.");
+    }
+    const stream = new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"));
+    return await new Response(stream).arrayBuffer();
+  }
+
+  function dailyMapPath(year) {
+    const template = data.meta.dailyMapPathTemplate || "data/daily_maps/rainfall_{year}.u16.gz";
+    return template.replace("{year}", String(year));
+  }
+
+  async function dailyMapForYear(year) {
+    const key = String(year);
+    if (dailyMapCache.has(key)) return dailyMapCache.get(key);
+    const promise = fetch(dailyMapPath(year), {cache:"force-cache"})
+      .then(response => {
+        if (!response.ok) throw new Error(`Daily rainfall map asset missing for ${year}`);
+        return response.arrayBuffer();
+      })
+      .then(gzipArrayBuffer)
+      .then(buffer => new Uint16Array(buffer));
+    dailyMapCache.set(key, promise);
+    return promise;
+  }
+
+  function dayIndexForDate(dateText) {
+    const date = new Date(`${dateText}T00:00:00Z`);
+    const start = Date.UTC(date.getUTCFullYear(), 0, 1);
+    return Math.round((date.getTime() - start) / 86400000);
+  }
+
   function dailyForYear(year, id = regionId()) {
     const len = data.regions?.dailyLengths?.[String(year)] || data.series.dailyLengths[String(year)];
     const encoded = data.regions?.dailyMeanByYear?.[id]?.[String(year)] || data.series.dailyMeanByYear[String(year)];
@@ -645,7 +683,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return monthNames[month - 1];
   }
 
-  function periodDateLabel(year, period = periodSelect.value, month = selectedMonth()) {
+  function periodDateLabel(year, period = periodSelect.value, month = selectedMonth(), date = null) {
+    if (period === "daily") return date || `${year}`;
     if (period === "annual") return `${year}`;
     if (period === "jjas") return `JJAS ${year}`;
     return `${monthNames[month - 1]} ${year}`;
@@ -694,21 +733,29 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     return `Linear trend ${stats.startYear}-${stats.endYear}: ${signed(stats.slopeDecade, 1)} mm/decade; p=${formatP(stats.p)}.`;
   }
 
-  function mapArrayForPeriod(period, year, month) {
-    if (period === "monthly") return decodeU16(`monthly-${year}-${month}`, data.maps.monthly[String(year)][month - 1], pointCount);
-    return decodeU16(`${period}-${year}`, data.maps[period][String(year)], pointCount);
+  async function mapArrayForContext(context) {
+    if (context.period === "daily") {
+      const yearMap = await dailyMapForYear(context.year);
+      const start = dayIndexForDate(context.date) * pointCount;
+      return {array:yearMap.subarray(start, start + pointCount), scale:10};
+    }
+    if (context.period === "monthly") {
+      return {array:decodeU16(`monthly-${context.year}-${context.month}`, data.maps.monthly[String(context.year)][context.month - 1], pointCount), scale:1};
+    }
+    return {array:decodeU16(`${context.period}-${context.year}`, data.maps[context.period][String(context.year)], pointCount), scale:1};
   }
 
   function climArrayForPeriod(period, month) {
-    if (period === "monthly") return decodeU16(`clim-monthly-${month}`, data.maps.climatologyMonthly[month - 1], pointCount);
+    if (period === "daily") return {array:decodeU16(`clim-daily-month-${month}`, data.maps.climatologyDailyMonth[month - 1], pointCount), scale:10};
+    if (period === "monthly") return {array:decodeU16(`clim-monthly-${month}`, data.maps.climatologyMonthly[month - 1], pointCount), scale:1};
     const field = period === "annual" ? "climatologyAnnual" : "climatologyJjas";
-    return decodeU16(`clim-${period}`, data.maps[field], pointCount);
+    return {array:decodeU16(`clim-${period}`, data.maps[field], pointCount), scale:1};
   }
 
   function mapContext() {
     const view = currentView();
     if (view === "extremes" && selectedExtremeRecord) {
-      const period = "monthly";
+      const period = selectedExtremeRecord.grain === "days" ? "daily" : "monthly";
       const month = selectedExtremeRecord.month;
       const year = selectedExtremeRecord.year;
       return {
@@ -716,6 +763,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
         period,
         year,
         month,
+        date: selectedExtremeRecord.date || null,
         display: extremeMetric.value === "absolute" ? "absolute" : extremeMetric.value,
         event: selectedExtremeRecord,
       };
@@ -725,19 +773,20 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       period: periodSelect.value,
       year: selectedYear(),
       month: selectedMonth(),
+      date: null,
       display: view === "anomaly" ? (anomalyUnit.value === "percent" ? "percentAnomaly" : "anomaly") : "absolute",
       event: null,
     };
   }
 
-  function mapValues() {
+  async function mapValues() {
     const context = mapContext();
-    const selected = mapArrayForPeriod(context.period, context.year, context.month);
+    const selected = await mapArrayForContext(context);
     const clim = climArrayForPeriod(context.period, context.month);
     const values = new Float32Array(pointCount);
     for (let i = 0; i < pointCount; i += 1) {
-      const val = selected[i] === 65535 ? NaN : selected[i];
-      const norm = clim[i] === 65535 ? NaN : clim[i];
+      const val = selected.array[i] === 65535 ? NaN : selected.array[i] / selected.scale;
+      const norm = clim.array[i] === 65535 ? NaN : clim.array[i] / clim.scale;
       if (context.display === "percentAnomaly") values[i] = pctAnomaly(val, norm);
       else values[i] = context.display === "anomaly" && Number.isFinite(val) && Number.isFinite(norm) ? val - norm : val;
     }
@@ -750,10 +799,10 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.28,"#d7b487"],[0.48,"#f8f2e8"],[0.5,"#fffaf3"],[0.52,"#edf7f3"],[0.72,"#7cc8bf"],[1,"#006d77"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
     }
     if (context.display === "anomaly") {
-      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : 600;
+      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? 600 : 120;
       return {min:-limit, max:limit, stops:[[0,"#8d4f22"],[0.45,"#f2e7cf"],[0.5,"#fffaf3"],[0.55,"#d8efe9"],[1,"#146f7a"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
     }
-    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : 1800;
+    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? 1800 : 300;
     return {min:0, max, stops:[[0,"#f0e7b4"],[0.18,"#b9d9a2"],[0.36,"#5fb8b4"],[0.58,"#2c91b2"],[0.78,"#3158a1"],[1,"#3b1b5a"]], minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
   }
 
@@ -853,7 +902,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     ctx.restore();
   }
 
-  function drawMap() {
+  async function drawMap() {
+    const token = ++mapDrawToken;
     if (currentView() === "trend") return;
     const ratio = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -867,12 +917,13 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     let values;
     let context;
     try {
-      ({values, context} = mapValues());
+      ({values, context} = await mapValues());
     } catch (mapError) {
       console.warn("Map data could not be drawn", mapError);
       showMapMessage("Map data is out of date. Reload this page to fetch the latest map files.");
       return;
     }
+    if (token !== mapDrawToken) return;
     const scale = colourStops(context);
     const project = projector(rect.width, rect.height);
     const cell = project(66.25, 6.5)[2] * data.meta.grid.resolutionDegrees;
@@ -900,12 +951,12 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     document.getElementById("legendMax").textContent = scale.maxLabel;
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
     const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
-    const descriptor = `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month)}`;
+    const descriptor = `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month, context.date)}`;
     const region = regionInfo();
     const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
     document.getElementById("mapTitle").textContent = context.display === "absolute" ? "Gridded Rainfall Total" : context.display === "percentAnomaly" ? "Gridded Rainfall Percentage Anomaly" : "Gridded Rainfall Anomaly";
     if (context.view === "extremes" && context.event) {
-      const grainText = context.event.grain === "days" ? `${context.event.date}; map shows ${monthNames[context.month - 1]} ${context.year}` : context.event.period;
+      const grainText = context.event.grain === "days" ? context.event.date : context.event.period;
       document.getElementById("mapHint").textContent = `${descriptor}. Selected extreme: ${grainText}. ${regionHint} Baseline: ${data.meta.baseline}.`;
     } else {
       document.getElementById("mapHint").textContent = `${descriptor}. ${regionHint} Baseline: ${data.meta.baseline}.`;
@@ -1168,9 +1219,10 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
       .filter(row => !monthFilter || row.month === monthFilter)
       .filter(row => grain !== "days" || !dayFilter || row.day === dayFilter)
       .filter(row => Number.isFinite(row[metric]));
+    const limit = grain === "days" ? 10 : 30;
     return rows.sort((a, b) => (
       extremeDirection.value === "wettest" ? b[metric] - a[metric] : a[metric] - b[metric]
-    )).slice(0, 30);
+    )).slice(0, limit);
   }
 
   function drawExtremesTable() {
@@ -1183,7 +1235,8 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     const direction = extremeDirection.value === "wettest" ? "Wettest" : "Driest";
     document.getElementById("extremeTitle").textContent = `${direction} ${titleGrain}: ${region.name}`;
     document.getElementById("periodHead").textContent = grain === "days" ? "Date" : "Month";
-    document.getElementById("extremeHint").textContent = `Filtered to ${monthText}${dayText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
+    const rowCount = grain === "days" ? "Top 10" : "Top 30";
+    document.getElementById("extremeHint").textContent = `${rowCount}; filtered to ${monthText}${dayText}; ranked by ${rankedByLabel(extremeMetric.value)} against the ${data.meta.baseline} ${grain === "days" ? "calendar-month daily mean" : "monthly mean"}.`;
 
     if (!rows.length) {
       selectedExtremeRecord = null;
@@ -1214,6 +1267,7 @@ body[data-view="trend"] .grid{grid-template-columns:1fr}
     if (view !== "extremes" && monthSelect.value === "all") monthSelect.value = "6";
     monthSelect.disabled = view !== "extremes" && periodSelect.value !== "monthly";
     if (view === "extremes" && extremeGrain.value === "days") {
+      if (monthSelect.value === "all") monthSelect.value = "6";
       daySelect.disabled = false;
     } else {
       daySelect.value = "all";
