@@ -157,15 +157,20 @@ main{padding:18px 0 34px}
 }
 #mapCanvas{display:block;width:100%;height:560px}
 .legend{
-  display:flex;
-  align-items:center;
-  gap:8px;
+  display:grid;
+  gap:4px;
   font-family:var(--mono);
   font-size:11px;
   color:var(--muted);
-  flex-wrap:wrap;
+  min-width:150px;
 }
-.swatch{width:130px;height:10px;border:1px solid rgba(0,0,0,.14);background:linear-gradient(90deg,#f0e7b4,#87c8b5,#2c91b2,#3158a1,#3b1b5a)}
+.legend-labels{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  line-height:1.1;
+}
+.swatch{display:block;width:150px;height:10px;border:1px solid rgba(0,0,0,.14);background:linear-gradient(90deg,#f0e7b4,#87c8b5,#2c91b2,#3158a1,#3b1b5a)}
 .tooltip{
   position:absolute;
   pointer-events:none;
@@ -324,9 +329,11 @@ body[data-view="drivers"] .extremes-panel{display:none}
           <p class="hint" id="mapHint"></p>
         </div>
         <div class="legend">
-          <span id="legendMin"></span>
+          <div class="legend-labels">
+            <span id="legendMin"></span>
+            <span id="legendMax"></span>
+          </div>
           <span class="swatch" id="legendSwatch"></span>
-          <span id="legendMax"></span>
         </div>
       </div>
       <div class="map-wrap">
@@ -1196,15 +1203,51 @@ body[data-view="drivers"] .extremes-panel{display:none}
     return {values, context};
   }
 
-  function colourStops(context) {
+  function percentile(sortedValues, q) {
+    if (!sortedValues.length) return NaN;
+    const position = (sortedValues.length - 1) * q;
+    const lo = Math.floor(position);
+    const hi = Math.ceil(position);
+    if (lo === hi) return sortedValues[lo];
+    return sortedValues[lo] + (sortedValues[hi] - sortedValues[lo]) * (position - lo);
+  }
+
+  function niceCeil(value) {
+    if (!Number.isFinite(value) || value <= 0) return 1;
+    const exponent = 10 ** Math.floor(Math.log10(value));
+    const fraction = value / exponent;
+    const nice = fraction <= 1 ? 1 : fraction <= 2 ? 2 : fraction <= 2.5 ? 2.5 : fraction <= 5 ? 5 : 10;
+    return nice * exponent;
+  }
+
+  function adaptiveSymmetricLimit(values, fallback, floor = 1, quantileValue = 0.95) {
+    const abs = [];
+    for (const value of values || []) {
+      if (Number.isFinite(value)) abs.push(Math.abs(value));
+    }
+    if (!abs.length) return fallback;
+    abs.sort((a, b) => a - b);
+    return niceCeil(Math.max(floor, percentile(abs, quantileValue)));
+  }
+
+  function scaleLabel(value, unit) {
+    const digits = Math.abs(value) < 10 ? 1 : 0;
+    return `${fmt(value, digits)}${unit}`;
+  }
+
+  function colourStops(context, values) {
     if (context.display === "percentAnomaly") {
-      const limit = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
-      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#dcc4a2"],[0.5,"#fffaf3"],[0.56,"#c6e0dc"],[1,"#267f86"]], minLabel:`-${limit}%`, maxLabel:`+${limit}%`, unit:"%"};
+      const fallback = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
+      const floor = context.period === "composite" ? 10 : context.period === "daily" ? 50 : 25;
+      const limit = adaptiveSymmetricLimit(values, fallback, floor, context.period === "daily" ? 0.98 : 0.95);
+      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#dcc4a2"],[0.5,"#fffaf3"],[0.56,"#c6e0dc"],[1,"#267f86"]], minLabel:`-${scaleLabel(limit, "%")}`, maxLabel:`+${scaleLabel(limit, "%")}`, unit:"%"};
     }
     if (context.display === "anomaly") {
       const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
-      const limit = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? (monthCount > 1 ? Math.min(1400, 350 * monthCount) : 600) : context.period === "composite" ? 75 : 180;
-      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#eadbc1"],[0.5,"#fffaf3"],[0.56,"#dceeea"],[1,"#267f86"]], minLabel:`-${limit} mm`, maxLabel:`+${limit} mm`, unit:"mm"};
+      const fallback = context.period === "annual" ? 1200 : context.period === "jjas" ? 900 : context.period === "monthly" ? (monthCount > 1 ? Math.min(1400, 350 * monthCount) : 600) : context.period === "composite" ? 75 : 180;
+      const floor = context.period === "composite" ? 2 : context.period === "daily" ? 10 : 25 * monthCount;
+      const limit = adaptiveSymmetricLimit(values, fallback, floor, context.period === "daily" ? 0.98 : 0.95);
+      return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#eadbc1"],[0.5,"#fffaf3"],[0.56,"#dceeea"],[1,"#267f86"]], minLabel:`-${scaleLabel(limit, " mm")}`, maxLabel:`+${scaleLabel(limit, " mm")}`, unit:"mm"};
     }
     const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
     const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? (monthCount > 1 ? 1400 * monthCount : 1800) : context.period === "composite" ? 80 : 300;
@@ -1329,7 +1372,7 @@ body[data-view="drivers"] .extremes-panel{display:none}
       return;
     }
     if (token !== mapDrawToken) return;
-    const scale = colourStops(context);
+    const scale = colourStops(context, values);
     const project = projector(rect.width, rect.height);
     const cell = project(66.25, 6.5)[2] * data.meta.grid.resolutionDegrees;
     mapPixels = [];
