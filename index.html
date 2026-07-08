@@ -86,7 +86,8 @@ h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spac
   align-items:end;
   padding:12px 0;
 }
-body[data-view="drivers"] .control-inner{grid-template-columns:minmax(180px,1fr) minmax(170px,.5fr)}
+body[data-view="drivers"] .control-inner{display:none}
+body[data-view="drivers"] .view-tabs{padding-bottom:12px}
 label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 select,input[type=range]{font:inherit;color:var(--ink)}
 select{
@@ -137,6 +138,7 @@ main{padding:18px 0 34px}
   grid-template-columns:minmax(0,1.18fr) minmax(360px,.82fr);
   gap:14px;
 }
+.map-column{display:grid;gap:14px;align-content:start}
 .stack{display:grid;gap:14px}
 .panel{border-radius:6px;padding:14px;min-width:0}
 .panel-head{
@@ -227,6 +229,15 @@ body[data-view="drivers"] .extremes-panel{display:none}
 .driver-form select{width:100%}
 .driver-summary{margin-top:12px;display:grid;gap:8px;font-size:13px;color:var(--muted)}
 .driver-summary strong{color:var(--ink)}
+.region-readout{display:grid;gap:10px}
+.region-toolbar{
+  display:flex;
+  align-items:end;
+  justify-content:flex-start;
+}
+.region-control{width:min(100%,320px)}
+.region-readout .kpis{margin:0}
+body[data-view="extremes"] .region-toolbar{display:none}
 @media (max-width:1180px){
   .control-inner{grid-template-columns:1fr 1fr 1fr}
   .driver-form{grid-template-columns:1fr 1fr}
@@ -276,8 +287,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
         <input id="yearSlider" type="range" min="1901" max="2025" value="2025" step="1">
       </label>
       <div id="yearValue" class="year-readout year-control">2025</div>
-      <label>Region
-        <select id="regionSelect"></select>
+      <label class="extreme-control">Region
+        <select id="extremeRegionSelect"></select>
       </label>
       <label class="period-control">Period
         <select id="periodSelect">
@@ -322,24 +333,35 @@ body[data-view="drivers"] .extremes-panel{display:none}
   <div id="error" class="error" hidden></div>
 
   <section class="grid">
-    <div class="panel map-panel">
-      <div class="panel-head">
-        <div>
-          <h2 id="mapTitle">Gridded Rainfall Map</h2>
-          <p class="hint" id="mapHint"></p>
-        </div>
-        <div class="legend">
-          <div class="legend-labels">
-            <span id="legendMin"></span>
-            <span id="legendMax"></span>
+    <div class="map-column">
+      <div class="panel map-panel">
+        <div class="panel-head">
+          <div>
+            <h2 id="mapTitle">Gridded Rainfall Map</h2>
+            <p class="hint" id="mapHint"></p>
           </div>
-          <span class="swatch" id="legendSwatch"></span>
+          <div class="legend">
+            <div class="legend-labels">
+              <span id="legendMin"></span>
+              <span id="legendMax"></span>
+            </div>
+            <span class="swatch" id="legendSwatch"></span>
+          </div>
+        </div>
+        <div class="map-wrap">
+          <canvas id="mapCanvas"></canvas>
+          <div class="tooltip" id="tooltip"></div>
         </div>
       </div>
-      <div class="map-wrap">
-        <canvas id="mapCanvas"></canvas>
-        <div class="tooltip" id="tooltip"></div>
-      </div>
+
+      <section class="region-readout" aria-label="Regional rainfall values">
+        <div class="region-toolbar">
+          <label class="region-control">Region
+            <select id="regionSelect"></select>
+          </label>
+        </div>
+        <section class="kpis" id="kpis"></section>
+      </section>
     </div>
 
     <div class="stack">
@@ -426,8 +448,6 @@ body[data-view="drivers"] .extremes-panel{display:none}
     </div>
   </section>
 
-  <section class="kpis" id="kpis"></section>
-
   <section class="panel extremes-panel" style="margin-top:14px">
     <div class="panel-head">
       <div>
@@ -489,6 +509,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
   const slider = document.getElementById("yearSlider");
   const yearValue = document.getElementById("yearValue");
   const regionSelect = document.getElementById("regionSelect");
+  const extremeRegionSelect = document.getElementById("extremeRegionSelect");
+  const regionSelects = [regionSelect, extremeRegionSelect].filter(Boolean);
   const periodSelect = document.getElementById("periodSelect");
   const anomalyUnit = document.getElementById("anomalyUnit");
   const monthSelect = document.getElementById("monthSelect");
@@ -525,7 +547,8 @@ body[data-view="drivers"] .extremes-panel{display:none}
   yearValue.textContent = slider.value;
 
   const allRegion = regions.find(region => region.id === "all-india") || regions[0];
-  regionSelect.innerHTML = regions.map(region => `<option value="${region.id}">${escapeHtml(region.name)}</option>`).join("");
+  const regionOptions = regions.map(region => `<option value="${region.id}">${escapeHtml(region.name)}</option>`).join("");
+  regionSelects.forEach(select => { select.innerHTML = regionOptions; });
   monthSelect.innerHTML = monthGroupOptions(true);
   monthSelect.value = "6";
   driverMonth.innerHTML = monthGroupOptions(true);
@@ -567,8 +590,18 @@ body[data-view="drivers"] .extremes-panel{display:none}
     return document.body.dataset.view || "absolute";
   }
 
+  function activeRegionSelect() {
+    return currentView() === "extremes" && extremeRegionSelect ? extremeRegionSelect : regionSelect;
+  }
+
   function regionId() {
-    return regionSelect.value || "all-india";
+    return activeRegionSelect()?.value || regionSelect.value || "all-india";
+  }
+
+  function syncRegionSelects(value) {
+    regionSelects.forEach(select => {
+      if (select.value !== value) select.value = value;
+    });
   }
 
   function regionInfo(id = regionId()) {
@@ -1849,7 +1882,13 @@ body[data-view="drivers"] .extremes-panel{display:none}
     update();
   });
   slider.addEventListener("input", update);
-  regionSelect.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
+  regionSelects.forEach(select => {
+    select.addEventListener("change", event => {
+      syncRegionSelects(event.target.value);
+      selectedExtremeKey = "";
+      update();
+    });
+  });
   periodSelect.addEventListener("change", update);
   anomalyUnit.addEventListener("change", update);
   monthSelect.addEventListener("change", () => { selectedExtremeKey = ""; update(); });
