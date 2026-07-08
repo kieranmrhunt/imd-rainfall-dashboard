@@ -138,6 +138,7 @@ main{padding:18px 0 34px}
   grid-template-columns:minmax(0,1.18fr) minmax(360px,.82fr);
   gap:14px;
 }
+body[data-view="drivers"] .grid{grid-template-columns:1fr}
 .map-column{display:grid;gap:14px;align-content:start}
 .stack{display:grid;gap:14px}
 .panel{border-radius:6px;padding:14px;min-width:0}
@@ -224,6 +225,8 @@ body[data-view="drivers"] .trend-panel,
 body[data-view="drivers"] .daily-panel,
 body[data-view="drivers"] .monthly-panel,
 body[data-view="drivers"] .extremes-panel{display:none}
+body[data-view="drivers"] .stack{display:none}
+.drivers-panel{margin-bottom:14px}
 .driver-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
 .driver-form label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
 .driver-form select{width:100%}
@@ -332,6 +335,57 @@ body[data-view="extremes"] .region-toolbar{display:none}
 <main class="wrap">
   <div id="error" class="error" hidden></div>
 
+  <div class="panel drivers-panel">
+    <div class="panel-head">
+      <div>
+        <h2>Forcings / Teleconnections</h2>
+        <p class="hint" id="driverHint"></p>
+      </div>
+    </div>
+    <div class="driver-form">
+      <label>Composite
+        <select id="driverDisplay">
+          <option value="anomaly">Mean anomaly</option>
+          <option value="percentAnomaly">Mean % anomaly</option>
+          <option value="absolute">Mean rainfall</option>
+        </select>
+      </label>
+      <label>Month / Season
+        <select id="driverMonth"></select>
+      </label>
+      <label>Condition 1
+        <select id="driverType1"></select>
+      </label>
+      <label>Operator 1
+        <select id="driverOp1"></select>
+      </label>
+      <label>Value 1
+        <select id="driverValue1"></select>
+      </label>
+      <label>Condition 2
+        <select id="driverType2"></select>
+      </label>
+      <label>Operator 2
+        <select id="driverOp2"></select>
+      </label>
+      <label>Value 2
+        <select id="driverValue2"></select>
+      </label>
+      <label class="phase-amp-control" hidden>Phase amp
+        <select id="driverAmp">
+          <option value="1">>= 1.0</option>
+          <option value="0.5">>= 0.5</option>
+          <option value="0">Any</option>
+          <option value="1.5">>= 1.5</option>
+        </select>
+      </label>
+    </div>
+    <div class="driver-summary">
+      <div><strong id="driverSample">No composite selected</strong></div>
+      <div id="driverDescription"></div>
+    </div>
+  </div>
+
   <section class="grid">
     <div class="map-column">
       <div class="panel map-panel">
@@ -395,56 +449,6 @@ body[data-view="extremes"] .region-toolbar{display:none}
         <svg id="monthlySvg" role="img" aria-label="Monthly rainfall profile"></svg>
       </div>
 
-      <div class="panel drivers-panel">
-        <div class="panel-head">
-          <div>
-            <h2>Forcings / Teleconnections</h2>
-            <p class="hint" id="driverHint"></p>
-          </div>
-        </div>
-        <div class="driver-form">
-          <label>Composite
-            <select id="driverDisplay">
-              <option value="anomaly">Mean anomaly</option>
-              <option value="percentAnomaly">Mean % anomaly</option>
-              <option value="absolute">Mean rainfall</option>
-            </select>
-          </label>
-          <label>Month / Season
-            <select id="driverMonth"></select>
-          </label>
-          <label>Condition 1
-            <select id="driverType1"></select>
-          </label>
-          <label>Operator 1
-            <select id="driverOp1"></select>
-          </label>
-          <label>Value 1
-            <select id="driverValue1"></select>
-          </label>
-          <label>Condition 2
-            <select id="driverType2"></select>
-          </label>
-          <label>Operator 2
-            <select id="driverOp2"></select>
-          </label>
-          <label>Value 2
-            <select id="driverValue2"></select>
-          </label>
-          <label class="phase-amp-control" hidden>Phase amp
-            <select id="driverAmp">
-              <option value="1">>= 1.0</option>
-              <option value="0.5">>= 0.5</option>
-              <option value="0">Any</option>
-              <option value="1.5">>= 1.5</option>
-            </select>
-          </label>
-        </div>
-        <div class="driver-summary">
-          <div><strong id="driverSample">No composite selected</strong></div>
-          <div id="driverDescription"></div>
-        </div>
-      </div>
     </div>
   </section>
 
