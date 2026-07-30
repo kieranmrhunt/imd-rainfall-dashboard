@@ -1,4 +1,5 @@
 raw/
+runtime/
 *.log
 *.part
 __pycache__/

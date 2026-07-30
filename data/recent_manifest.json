@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "generated": "2026-07-30T15:02:09Z",
+  "latestAvailableDate": "2026-07-30",
+  "baseline": "1991-2020",
+  "dailyDates": [
+    "2026-07-30",
+    "2026-07-29",
+    "2026-07-28",
+    "2026-07-27",
+    "2026-07-26",
+    "2026-07-25",
+    "2026-07-24",
+    "2026-07-23",
+    "2026-07-22",
+    "2026-07-21"
+  ],
+  "periods": [
+    {
+      "id": "last-7-days",
+      "label": "Last 7 days",
+      "startDate": "2026-07-24",
+      "endDate": "2026-07-30",
+      "expectedDays": 7,
+      "availableDays": 7,
+      "status": "complete"
+    },
+    {
+      "id": "previous-7-days",
+      "label": "Previous 7 days",
+      "startDate": "2026-07-17",
+      "endDate": "2026-07-23",
+      "expectedDays": 7,
+      "availableDays": 7,
+      "status": "complete"
+    },
+    {
+      "id": "current-month",
+      "label": "July to date",
+      "startDate": "2026-07-01",
+      "endDate": "2026-07-30",
+      "expectedDays": 30,
+      "availableDays": 30,
+      "status": "partial"
+    },
+    {
+      "id": "last-complete-month",
+      "label": "June 2026",
+      "startDate": "2026-06-01",
+      "endDate": "2026-06-30",
+      "expectedDays": 30,
+      "availableDays": 30,
+      "status": "complete"
+    }
+  ],
+  "missingDates": [],
+  "payloadSha256": "26bb7f32c9a068af2e00b2cd344db13f4c3bff4417c9abb8eee004400896e2fd"
+}

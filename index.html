@@ -87,7 +87,9 @@ h1{font-size:clamp(32px,5vw,58px);line-height:1.02;margin:8px 0 10px;letter-spac
   padding:12px 0;
 }
 body[data-view="drivers"] .control-inner{display:none}
-body[data-view="drivers"] .view-tabs{padding-bottom:12px}
+body[data-view="recent"] .control-inner{display:none}
+body[data-view="drivers"] .view-tabs,
+body[data-view="recent"] .view-tabs{padding-bottom:12px}
 label{display:grid;gap:5px;font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.1em}
 select,input[type=range]{font:inherit;color:var(--ink)}
 select{
@@ -203,6 +205,110 @@ tbody tr.is-selected{background:rgba(199,55,95,.1)}
   font-size:13px;
 }
 .source strong{color:var(--ink)}
+.recent-panel{display:grid;gap:20px;align-content:start}
+body[data-view="recent"] .stack{align-self:start}
+.recent-panel .panel-head{margin-bottom:0}
+.recent-freshness{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid rgba(71,114,71,.35);
+  background:rgba(71,114,71,.08);
+  color:#315c35;
+  border-radius:4px;
+  padding:6px 8px;
+  font:700 11px/1.2 var(--mono);
+  white-space:nowrap;
+}
+.recent-freshness::before{
+  content:"";
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:#477247;
+}
+.recent-section{display:grid;gap:9px}
+.recent-section-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:12px;
+}
+.recent-section-title{
+  margin:0;
+  font:750 12px/1.2 var(--mono);
+  color:var(--ink);
+  text-transform:uppercase;
+  letter-spacing:.08em;
+}
+.recent-section-note{font-size:12px;color:var(--muted)}
+.recent-daily-list{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+}
+.recent-choice{
+  position:relative;
+  min-width:0;
+  border:1px solid var(--line);
+  border-radius:4px;
+  background:#fff;
+  color:var(--ink);
+  padding:9px 10px;
+  text-align:left;
+  cursor:pointer;
+  overflow:hidden;
+}
+.recent-choice:hover{border-color:var(--line2);background:#fbf8f1}
+.recent-choice[aria-pressed="true"]{
+  border-color:#2b2136;
+  box-shadow:inset 3px 0 0 #c7375f;
+  background:#f8f4ed;
+}
+.recent-date-row{
+  display:flex;
+  justify-content:space-between;
+  align-items:baseline;
+  gap:8px;
+  position:relative;
+  z-index:1;
+}
+.recent-date{font:750 12px/1.2 var(--mono)}
+.recent-rain{font:800 13px/1.2 var(--sans)}
+.recent-bar{
+  display:block;
+  width:100%;
+  height:4px;
+  margin-top:8px;
+  background:rgba(31,143,166,.12);
+}
+.recent-bar > span{
+  display:block;
+  width:var(--bar,0%);
+  height:100%;
+  background:#1f8fa6;
+}
+.recent-period-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.recent-period{min-height:106px;display:grid;align-content:space-between;gap:8px}
+.recent-period-name{font:800 14px/1.2 var(--sans)}
+.recent-period-range{display:block;font:11px/1.3 var(--mono);color:var(--muted);margin-top:3px}
+.recent-anomaly{display:block;font:850 23px/1 var(--sans)}
+.recent-anomaly.wet{color:#146f7a}
+.recent-anomaly.dry{color:#b54a35}
+.recent-period-sub{display:block;font-size:12px;color:var(--muted);margin-top:4px}
+.recent-method{
+  border-top:1px solid var(--line);
+  padding-top:12px;
+  color:var(--muted);
+  font-size:12px;
+}
+.recent-status-note{
+  display:inline-block;
+  margin-left:6px;
+  color:#8b5b27;
+  font:700 10px/1 var(--mono);
+  text-transform:uppercase;
+}
 .error{
   margin:24px auto;
   max-width:760px;
@@ -224,7 +330,14 @@ body[data-view="extremes"] .drivers-panel,
 body[data-view="drivers"] .trend-panel,
 body[data-view="drivers"] .daily-panel,
 body[data-view="drivers"] .monthly-panel,
-body[data-view="drivers"] .extremes-panel{display:none}
+body[data-view="drivers"] .extremes-panel,
+body[data-view="recent"] .trend-panel,
+body[data-view="recent"] .daily-panel,
+body[data-view="recent"] .monthly-panel,
+body[data-view="recent"] .extremes-panel,
+body[data-view="recent"] .drivers-panel,
+body:not([data-view="recent"]) .recent-panel,
+body:not([data-view="recent"]) .recent-source{display:none}
 body[data-view="drivers"] .stack{display:none}
 .drivers-panel{margin-bottom:14px}
 .driver-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:8px}
@@ -245,6 +358,9 @@ body[data-view="extremes"] .region-toolbar{display:none}
   .control-inner{grid-template-columns:1fr 1fr 1fr}
   .driver-form{grid-template-columns:1fr 1fr}
 }
+@media (min-width:981px){
+  body[data-view="recent"] .kpis{grid-template-columns:repeat(5,minmax(0,1fr))}
+}
 @media (max-width:980px){
   .grid{grid-template-columns:1fr}
   .map-wrap{min-height:460px}
@@ -262,9 +378,13 @@ body[data-view="extremes"] .region-toolbar{display:none}
   .panel{padding:11px}
   .map-wrap{min-height:400px}
   #mapCanvas{height:400px}
+  .recent-panel{gap:16px}
+  .recent-panel .panel-head{display:grid}
+  .recent-freshness{justify-self:start}
 }
 @media (max-width:380px){
   .kpis{grid-template-columns:1fr}
+  .recent-daily-list,.recent-period-list{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -273,13 +393,14 @@ body[data-view="extremes"] .region-toolbar{display:none}
   <div class="wrap">
     <div class="eyebrow">India Meteorological Department gridded rainfall</div>
     <h1>Daily Rainfall Dashboard</h1>
-    <p class="standfirst">Explore rainfall totals, trends, anomalies, ranked events, and climate-mode composites from the IMD 0.25 degree daily rainfall archive.</p>
+    <p class="standfirst">Explore recent conditions, rainfall totals, trends, anomalies, ranked events, and climate-mode composites from the IMD 0.25 degree daily rainfall archive.</p>
   </div>
 </header>
 
 <section class="controls">
   <div class="wrap">
     <div class="view-tabs" role="tablist" aria-label="Dashboard view">
+      <button class="view-tab" type="button" data-view-target="recent" aria-selected="false">Recent</button>
       <button class="view-tab" type="button" data-view-target="absolute" aria-selected="true">Absolute</button>
       <button class="view-tab" type="button" data-view-target="anomaly" aria-selected="false">Anomaly</button>
       <button class="view-tab" type="button" data-view-target="extremes" aria-selected="false">Extremes</button>
@@ -449,6 +570,31 @@ body[data-view="extremes"] .region-toolbar{display:none}
         <svg id="monthlySvg" role="img" aria-label="Monthly rainfall profile"></svg>
       </div>
 
+      <div class="panel recent-panel">
+        <div class="panel-head">
+          <div>
+            <h2>Recent Rainfall</h2>
+            <p class="hint" id="recentStatus">Loading the latest IMD grids.</p>
+          </div>
+          <span class="recent-freshness" id="recentFreshness">Checking feed</span>
+        </div>
+        <section class="recent-section" aria-labelledby="recentDailyTitle">
+          <div class="recent-section-head">
+            <h3 class="recent-section-title" id="recentDailyTitle">Daily rainfall</h3>
+            <span class="recent-section-note">Area mean</span>
+          </div>
+          <div class="recent-daily-list" id="recentDailyList" aria-label="Ten latest available rainfall days"></div>
+        </section>
+        <section class="recent-section" aria-labelledby="recentPeriodTitle">
+          <div class="recent-section-head">
+            <h3 class="recent-section-title" id="recentPeriodTitle">Accumulation anomalies</h3>
+            <span class="recent-section-note">1991-2020 normal</span>
+          </div>
+          <div class="recent-period-list" id="recentPeriodList" aria-label="Recent accumulation anomaly periods"></div>
+        </section>
+        <p class="recent-method" id="recentMethod"></p>
+      </div>
+
     </div>
   </section>
 
@@ -466,6 +612,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
   </section>
 
   <section class="panel source">
+    <div class="recent-source"><strong>Recent feed:</strong> India Meteorological Department <a href="https://imdpune.gov.in/cmpg/Realtimedata/Rainfall/Rain_Download.html">real-time 0.25 x 0.25 degree daily rainfall</a>. Accumulation normals match the same calendar dates in 1991-2020; the latest available date and any missing days are shown in the Recent view.</div>
     <div><strong>Source:</strong> India Meteorological Department, 0.25 x 0.25 degree daily gridded rainfall binary archive. Grid is 135 x 129 points from 6.5N, 66.5E to 38.5N, 100.0E; units are mm.</div>
     <div><strong>Boundaries:</strong> geoBoundaries India ADM0 and ADM1 geometries, simplified for browser rendering.</div>
     <div><strong>Citation:</strong> Pai D.S., Latha Sridhar, Rajeevan M., Sreejith O.P., Satbhai N.S. and Mukhopadhyay B. (2014), MAUSAM, 65, 1, pp. 1-18.</div>
@@ -475,12 +622,14 @@ body[data-view="extremes"] .region-toolbar{display:none}
 </main>
 
 <script src="data/dashboard_data.js?v=20260707-daily-maps"></script>
+<script src="data/recent_data.js?v=20260730-recent"></script>
 <script src="data/climate_indices.js?v=20260707-drivers"></script>
 <script src="assets/india_adm0_simplified.js?v=20260707-daily-maps"></script>
 <script src="assets/india_adm1_simplified.js?v=20260707-daily-maps"></script>
 <script>
 (() => {
   const data = window.IMD_RAINFALL_DATA;
+  const recent = window.IMD_RECENT_RAINFALL;
   const climate = window.IMD_CLIMATE_INDICES;
   const boundary = window.INDIA_BOUNDARY;
   const stateBoundary = window.INDIA_STATE_BOUNDARIES;
@@ -531,6 +680,9 @@ body[data-view="extremes"] .region-toolbar{display:none}
   const driverType2 = document.getElementById("driverType2");
   const driverOp2 = document.getElementById("driverOp2");
   const driverValue2 = document.getElementById("driverValue2");
+  const recentDailyList = document.getElementById("recentDailyList");
+  const recentPeriodList = document.getElementById("recentPeriodList");
+  const recentTab = document.querySelector('[data-view-target="recent"]');
   const kpis = document.getElementById("kpis");
   const canvas = document.getElementById("mapCanvas");
   const tooltip = document.getElementById("tooltip");
@@ -544,6 +696,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
   let mapDrawToken = 0;
   let selectedExtremeKey = "";
   let selectedExtremeRecord = null;
+  let selectedRecentId = recent?.daily?.[0]?.id || recent?.periods?.[0]?.id || "";
 
   slider.min = years[0];
   slider.max = years[years.length - 1];
@@ -557,6 +710,15 @@ body[data-view="extremes"] .region-toolbar{display:none}
   monthSelect.value = "6";
   driverMonth.innerHTML = monthGroupOptions(true);
   driverMonth.value = "9";
+  if (
+    !recent
+    || recent.meta?.pointCount !== pointCount
+    || !recent.daily?.length
+    || !recent.periods?.length
+  ) {
+    recentTab.disabled = true;
+    recentTab.title = "Recent IMD data are temporarily unavailable";
+  }
 
   const driverTypes = [
     ["none", "None"],
@@ -708,6 +870,37 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
   function pctAnomaly(value, normal) {
     return Number.isFinite(value) && Number.isFinite(normal) && normal > 0 ? 100 * (value - normal) / normal : NaN;
+  }
+
+  function dateLabel(dateText, options = {day:"numeric", month:"short", year:"numeric"}) {
+    if (!dateText) return "n/a";
+    const parsed = new Date(`${dateText}T00:00:00Z`);
+    if (!Number.isFinite(parsed.getTime())) return dateText;
+    return new Intl.DateTimeFormat("en-GB", {...options, timeZone:"UTC"}).format(parsed);
+  }
+
+  function dateRangeLabel(startDate, endDate) {
+    if (!startDate || !endDate) return "Dates unavailable";
+    const start = dateLabel(startDate, {day:"numeric", month:"short", year:"numeric"});
+    const end = dateLabel(endDate, {day:"numeric", month:"short", year:"numeric"});
+    return startDate === endDate ? start : `${start} - ${end}`;
+  }
+
+  function recentSelection() {
+    if (!recent) return null;
+    return recent.daily.find(item => item.id === selectedRecentId)
+      || recent.periods.find(item => item.id === selectedRecentId)
+      || recent.daily[0]
+      || recent.periods[0]
+      || null;
+  }
+
+  function isRecentDaily(item = recentSelection()) {
+    return Boolean(item?.date);
+  }
+
+  function recentRegionValues(item = recentSelection(), id = regionId()) {
+    return item?.regions?.[id] || item?.regions?.["all-india"] || null;
   }
 
   function logGamma(z) {
@@ -1186,6 +1379,21 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
   function mapContext() {
     const view = currentView();
+    if (view === "recent") {
+      const item = recentSelection();
+      if (!item) throw new Error("Recent IMD rainfall data are unavailable.");
+      const daily = isRecentDaily(item);
+      return {
+        view,
+        period: daily ? "daily" : "recent",
+        year: daily ? Number(item.date.slice(0, 4)) : null,
+        month: daily ? Number(item.date.slice(5, 7)) : null,
+        date: daily ? item.date : null,
+        display: daily ? "absolute" : "anomaly",
+        event: null,
+        item,
+      };
+    }
     if (view === "drivers") {
       return {
         view,
@@ -1227,6 +1435,29 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
   async function mapValues() {
     const context = mapContext();
+    if (context.view === "recent") {
+      const observedRaw = decodeU16(`recent-observed-${context.item.id}`, context.item.observed, pointCount);
+      const observedValues = new Float32Array(pointCount);
+      const normalValues = context.item.normal
+        ? new Float32Array(pointCount)
+        : null;
+      const normalRaw = context.item.normal
+        ? decodeU16(`recent-normal-${context.item.id}`, context.item.normal, pointCount)
+        : null;
+      const values = new Float32Array(pointCount);
+      for (let i = 0; i < pointCount; i += 1) {
+        const observed = mapCellValue(observedRaw, i, recent.meta.mapScale || 10);
+        const normal = normalRaw
+          ? mapCellValue(normalRaw, i, recent.meta.mapScale || 10)
+          : NaN;
+        observedValues[i] = observed;
+        if (normalValues) normalValues[i] = normal;
+        values[i] = context.display === "anomaly" && Number.isFinite(observed) && Number.isFinite(normal)
+          ? observed - normal
+          : observed;
+      }
+      return {values, context, observedValues, normalValues};
+    }
     if (context.view === "drivers") return driverMapValues(context);
     const selected = await mapArrayForContext(context);
     const clim = climArrayForPeriod(context.period, monthGroup(context.month).months[0], context.monthGroup || context.month);
@@ -1401,8 +1632,10 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
     let values;
     let context;
+    let observedValues = null;
+    let normalValues = null;
     try {
-      ({values, context} = await mapValues());
+      ({values, context, observedValues = null, normalValues = null} = await mapValues());
     } catch (mapError) {
       console.warn("Map data could not be drawn", mapError);
       showMapMessage(mapError?.message || "Map data is out of date. Reload this page to fetch the latest map files.");
@@ -1420,7 +1653,16 @@ body[data-view="extremes"] .region-toolbar{display:none}
       const [x, y] = project(lon, lat);
       ctx.fillStyle = colour(values[i], scale);
       ctx.fillRect(x - cell / 2, y - cell / 2, Math.max(cell, 1), Math.max(cell, 1));
-      mapPixels.push({x, y, lon, lat, value: values[i], unit:scale.unit});
+      mapPixels.push({
+        x,
+        y,
+        lon,
+        lat,
+        value:values[i],
+        unit:scale.unit,
+        observed:observedValues?.[i],
+        normal:normalValues?.[i],
+      });
     }
     drawBoundary(project, stateBoundary, {strokeStyle:"rgba(33,28,42,.24)", lineWidth:.55});
     drawBoundary(project, boundary, {strokeStyle:"rgba(33,28,42,.72)", lineWidth:1.2});
@@ -1436,15 +1678,33 @@ body[data-view="extremes"] .region-toolbar{display:none}
     document.getElementById("legendMax").textContent = scale.maxLabel;
     document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
     const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
-    const descriptor = context.view === "drivers"
+    const descriptor = context.view === "recent"
+      ? isRecentDaily(context.item)
+        ? "Daily total"
+        : `Accumulation anomaly: ${context.item.label}`
+      : context.view === "drivers"
       ? `${context.display === "absolute" ? "Mean rainfall" : anomalyDescriptor}: ${monthGroupValueLabel(context.monthGroup || context.month)} composite`
       : `${context.display === "absolute" ? "Total" : anomalyDescriptor}: ${periodDateLabel(context.year, context.period, context.month, context.date)}`;
     const region = regionInfo();
     const regionHint = region.id === "all-india" ? "State/UT boundaries shown." : `${region.name} highlighted.`;
-    document.getElementById("mapTitle").textContent = context.view === "drivers"
+    document.getElementById("mapTitle").textContent = context.view === "recent"
+      ? isRecentDaily(context.item) ? "Recent Daily Rainfall" : "Recent Rainfall Anomaly"
+      : context.view === "drivers"
       ? "Climate-Mode Rainfall Composite"
       : context.display === "absolute" ? "Gridded Rainfall Total" : context.display === "percentAnomaly" ? "Gridded Rainfall Percentage Anomaly" : "Gridded Rainfall Anomaly";
-    if (context.view === "drivers") {
+    if (context.view === "recent") {
+      const item = context.item;
+      const coverage = isRecentDaily(item)
+        ? dateLabel(item.date)
+        : dateRangeLabel(item.startDate, item.endDate);
+      const availability = item.availableDays && item.expectedDays
+        ? ` ${item.availableDays} of ${item.expectedDays} source days available.`
+        : "";
+      const comparison = isRecentDaily(item)
+        ? "Daily total from the official IMD real-time grid."
+        : `Observed accumulation minus the mean for the same calendar dates in ${recent.meta.baseline}.`;
+      document.getElementById("mapHint").textContent = `${descriptor}; ${coverage}. ${comparison}${availability} ${regionHint}`;
+    } else if (context.view === "drivers") {
       const summary = context.summary;
       document.getElementById("mapHint").textContent = `${descriptor}. ${summary.days} matching days across ${summary.years} years. ${regionHint} Baseline: ${data.meta.baseline}.`;
     } else if (context.view === "extremes" && context.event) {
@@ -1606,6 +1866,68 @@ body[data-view="extremes"] .region-toolbar{display:none}
       : "No dates match these filters. Relax a threshold or choose a different month.";
   }
 
+  function drawRecentPanel() {
+    if (currentView() !== "recent") return;
+    if (!recent) {
+      document.getElementById("recentStatus").textContent = "The recent IMD feed is temporarily unavailable.";
+      document.getElementById("recentFreshness").textContent = "Unavailable";
+      recentDailyList.innerHTML = "";
+      recentPeriodList.innerHTML = "";
+      return;
+    }
+    const region = regionInfo();
+    const latest = dateLabel(recent.meta.latestAvailableDate, {day:"numeric", month:"short", year:"numeric"});
+    document.getElementById("recentStatus").textContent = `${region.name}; latest available grid ${latest}. Select any date or anomaly window to update the map.`;
+    document.getElementById("recentFreshness").textContent = `Through ${latest}`;
+    document.getElementById("recentMethod").textContent = `${recent.meta.normalMethod}. Current-month values are month-to-date; missing source days are reported rather than treated as zero. Updated ${dateLabel(recent.meta.generated.slice(0, 10))}.`;
+
+    const dailyValues = recent.daily
+      .map(item => Number(recentRegionValues(item, region.id)?.observed))
+      .filter(Number.isFinite);
+    const dailyMax = Math.max(1, ...dailyValues);
+    recentDailyList.innerHTML = recent.daily.map(item => {
+      const summary = recentRegionValues(item, region.id);
+      const rainfall = Number(summary?.observed);
+      const bar = Number.isFinite(rainfall) ? Math.max(1, 100 * rainfall / dailyMax) : 0;
+      const selected = item.id === selectedRecentId;
+      return `
+        <button class="recent-choice" type="button" data-recent-id="${escapeHtml(item.id)}" aria-pressed="${selected}" aria-label="${escapeHtml(dateLabel(item.date))}: ${fmt(rainfall, 1)} millimetres">
+          <span class="recent-date-row">
+            <span class="recent-date">${escapeHtml(dateLabel(item.date, {weekday:"short", day:"numeric", month:"short"}))}</span>
+            <span class="recent-rain">${fmt(rainfall, 1)} mm</span>
+          </span>
+          <span class="recent-bar" aria-hidden="true"><span style="--bar:${bar.toFixed(1)}%"></span></span>
+        </button>
+      `;
+    }).join("");
+
+    recentPeriodList.innerHTML = recent.periods.map(item => {
+      const summary = recentRegionValues(item, region.id);
+      const anomaly = Number(summary?.anomaly);
+      const anomalyPct = Number(summary?.percentAnomaly);
+      const observed = Number(summary?.observed);
+      const normal = Number(summary?.normal);
+      const selected = item.id === selectedRecentId;
+      const status = item.status === "partial"
+        ? `<span class="recent-status-note">to date</span>`
+        : item.status === "incomplete"
+          ? `<span class="recent-status-note">${item.availableDays}/${item.expectedDays} days</span>`
+          : "";
+      return `
+        <button class="recent-choice recent-period" type="button" data-recent-id="${escapeHtml(item.id)}" aria-pressed="${selected}" aria-label="${escapeHtml(item.label)}: anomaly ${signed(anomaly, 1)} millimetres, ${signed(anomalyPct, 1)} per cent">
+          <span>
+            <span class="recent-period-name">${escapeHtml(item.shortLabel || item.label)}${status}</span>
+            <span class="recent-period-range">${escapeHtml(dateRangeLabel(item.startDate, item.endDate))}</span>
+          </span>
+          <span>
+            <span class="recent-anomaly ${anomaly >= 0 ? "wet" : "dry"}">${signed(anomaly, 1)} mm</span>
+            <span class="recent-period-sub">${signed(anomalyPct, 1)}% · ${fmt(observed, 1)} vs ${fmt(normal, 1)} mm</span>
+          </span>
+        </button>
+      `;
+    }).join("");
+  }
+
   function cardHtml(cards) {
     kpis.innerHTML = cards.map(card => `
       <article class="card">
@@ -1618,6 +1940,33 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
   function drawKpis() {
     const view = currentView();
+    if (view === "recent") {
+      const item = recentSelection();
+      const summary = recentRegionValues(item);
+      if (!item || !summary) {
+        cardHtml([["Recent data", "Unavailable", "The next scheduled update will try again"]]);
+        return;
+      }
+      const region = regionInfo();
+      if (isRecentDaily(item)) {
+        cardHtml([
+          ["Date", dateLabel(item.date, {day:"numeric", month:"short", year:"numeric"}), "Latest ten available IMD grids"],
+          ["Rainfall", `${fmt(summary.observed, 1)} mm`, `Area-weighted ${region.name} daily mean`],
+          ["Grid", "0.25 degrees", "IMD real-time daily rainfall"],
+          ["Available through", dateLabel(recent.meta.latestAvailableDate, {day:"numeric", month:"short"}), "No unavailable day is counted as zero"],
+        ]);
+      } else {
+        const incomplete = item.availableDays !== item.expectedDays;
+        cardHtml([
+          ["Period", item.label, dateRangeLabel(item.startDate, item.endDate)],
+          ["Observed", `${fmt(summary.observed, 1)} mm`, `Area-weighted ${region.name} accumulation`],
+          ["Normal", `${fmt(summary.normal, 1)} mm`, `${recent.meta.baseline}, matching calendar dates`],
+          ["Anomaly", `${signed(summary.anomaly, 1)} mm`, Number(summary.anomaly) < 0 ? "Deficit against normal" : "Surplus against normal"],
+          ["Percent normal", `${fmt(summary.percentNormal, 1)}%`, incomplete ? `${item.availableDays} of ${item.expectedDays} days available` : `${signed(summary.percentAnomaly, 1)}% anomaly`],
+        ]);
+      }
+      return;
+    }
     if (view === "drivers") {
       const summary = driverSummary();
       const condition1 = driverCondition(1);
@@ -1838,19 +2187,26 @@ body[data-view="extremes"] .region-toolbar{display:none}
   function update() {
     updateControlState();
     yearValue.textContent = slider.value;
-    if (currentView() === "extremes") drawExtremesTable();
+    const view = currentView();
+    if (view === "extremes") drawExtremesTable();
     drawKpis();
     drawDriversPanel();
+    drawRecentPanel();
     drawMap();
-    drawTrend();
-    drawDaily();
-    drawMonthly();
+    if (view === "absolute") {
+      drawTrend();
+      drawDaily();
+      drawMonthly();
+    } else if (view === "anomaly") {
+      drawMonthly();
+    }
   }
 
-  canvas.addEventListener("mousemove", event => {
+  let tooltipHideTimer = null;
+  function showMapTooltip(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
     let best = null;
     let bestDist = Infinity;
     for (const point of mapPixels) {
@@ -1862,20 +2218,44 @@ body[data-view="extremes"] .region-toolbar{display:none}
     }
     if (!best || bestDist > 9 || !Number.isFinite(best.value)) {
       tooltip.style.display = "none";
-      return;
+      return false;
     }
     tooltip.style.display = "block";
     tooltip.style.left = `${Math.min(rect.width - 170, x + 12)}px`;
     tooltip.style.top = `${Math.max(8, y - 12)}px`;
-    tooltip.innerHTML = `${best.lat.toFixed(2)}N, ${best.lon.toFixed(2)}E<br>${fmt(best.value, 0)} ${best.unit}`;
+    const detail = currentView() === "recent" && Number.isFinite(best.normal)
+      ? `<br>Observed ${fmt(best.observed, 1)} mm · normal ${fmt(best.normal, 1)} mm`
+      : "";
+    tooltip.innerHTML = `${best.lat.toFixed(2)}N, ${best.lon.toFixed(2)}E<br>${fmt(best.value, 1)} ${best.unit}${detail}`;
+    return true;
+  }
+  canvas.addEventListener("pointermove", event => {
+    if (event.pointerType === "touch") return;
+    showMapTooltip(event.clientX, event.clientY);
+  });
+  canvas.addEventListener("pointerdown", event => {
+    if (!showMapTooltip(event.clientX, event.clientY)) return;
+    window.clearTimeout(tooltipHideTimer);
+    tooltipHideTimer = window.setTimeout(() => {
+      tooltip.style.display = "none";
+    }, 4500);
   });
   canvas.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
 
   document.querySelectorAll(".view-tab").forEach(button => {
     button.addEventListener("click", () => {
+      if (button.disabled) return;
       document.body.dataset.view = button.dataset.viewTarget;
       document.querySelectorAll(".view-tab").forEach(tab => tab.setAttribute("aria-selected", String(tab === button)));
       selectedExtremeKey = "";
+      update();
+    });
+  });
+  [recentDailyList, recentPeriodList].forEach(container => {
+    container.addEventListener("click", event => {
+      const button = event.target.closest("button[data-recent-id]");
+      if (!button) return;
+      selectedRecentId = button.dataset.recentId;
       update();
     });
   });
@@ -1908,7 +2288,16 @@ body[data-view="extremes"] .region-toolbar{display:none}
   driverOp2.addEventListener("change", update);
   driverValue1.addEventListener("change", update);
   driverValue2.addEventListener("change", update);
-  window.addEventListener("resize", () => { drawMap(); drawTrend(); drawDaily(); drawMonthly(); });
+  window.addEventListener("resize", () => {
+    drawMap();
+    if (currentView() === "absolute") {
+      drawTrend();
+      drawDaily();
+      drawMonthly();
+    } else if (currentView() === "anomaly") {
+      drawMonthly();
+    }
+  });
 
   initialiseDriverControls();
   update();

@@ -8,6 +8,10 @@ This folder contains a local dashboard built from the India Meteorological Depar
 - `index.html` - static dashboard UI.
 - `data/dashboard_data.js` - compact browser-ready data for maps, charts, state
   filters, monthly gridded anomalies, and event rankings.
+- `data/recent_data.js` - compact rolling payload for the ten latest available
+  daily grids and recent weekly/monthly anomalies.
+- `data/recent_manifest.json` - latest source date, recent period coverage, and
+  a stable content checksum for scheduled updates.
 - `data/annual_summary.csv` - all-India annual and JJAS summary metrics.
 - `data/monthly_by_year.csv` - area-weighted all-India monthly totals by year.
 - `data/manifest.json` - source, grid, baseline, and generation metadata.
@@ -18,6 +22,8 @@ This folder contains a local dashboard built from the India Meteorological Depar
   the refresh script is run locally. The raw archive is not committed to GitHub.
 - `scripts/download_imd_rainfall.py` - resumable downloader with byte-count checks.
 - `scripts/process_imd_rainfall.py` - processor for dashboard data products.
+- `scripts/update_recent_rainfall.py` - updater for the official IMD real-time
+  daily feed and exact calendar-day 1991-2020 normals.
 
 ## Source
 
@@ -26,6 +32,9 @@ https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_Bin.html
 
 Equivalent IMD NetCDF page:
 https://www.imdpune.gov.in/cmpg/Griddata/Rainfall_25_NetCDF.html
+
+IMD real-time daily rainfall page:
+https://imdpune.gov.in/cmpg/Realtimedata/Rainfall/Rain_Download.html
 
 The dashboard uses the binary archive because it can be read directly with NumPy
 without additional NetCDF dependencies.
@@ -49,11 +58,14 @@ that calendar month. Wettest and driest months are ranked by anomaly against the
 selected region's baseline monthly mean. Percentage anomaly is calculated as
 `100 * (rainfall - normal) / normal`.
 
-The dashboard separates absolute totals, trend views, anomaly maps, and extremes.
-Monthly extremes can drive gridded monthly anomaly maps, so queries such as a
-state's wettest September can be inspected spatially. Daily extremes are ranked
-from the regional daily series; the map panel shows the corresponding monthly
-context because daily gridded maps are not shipped to keep the static site small.
+The dashboard separates recent conditions, absolute totals, trend views,
+anomaly maps, and extremes. Monthly and daily extremes drive the corresponding
+gridded maps, with compressed annual daily-map assets loaded only when needed.
+
+The Recent view uses the official real-time daily binary grids. Its seven-day
+and calendar-month anomalies subtract the mean accumulation for the same
+calendar dates in 1991-2020. The current month is labelled month-to-date, and
+missing source days are reported rather than filled with zero.
 
 ## Refresh
 
@@ -61,6 +73,24 @@ context because daily gridded maps are not shipped to keep the static site small
 python scripts/download_imd_rainfall.py --start 1901 --end 2025 --out-dir raw
 python scripts/process_imd_rainfall.py --raw-dir raw --data-dir data --boundary assets/india_adm0_simplified.geojson --state-boundary assets/india_adm1_simplified.geojson
 ```
+
+For the rolling Recent payload:
+
+```powershell
+python scripts/update_recent_rainfall.py
+```
+
+The updater caches the 1991-2020 daily map assets and real-time IMD grids under
+`runtime/`, writes outputs atomically, and leaves the published files untouched
+when the underlying data have not changed.
+
+## Scheduled Recent Updates
+
+`scripts/bootstrap_recent_updater.sh` prepares a dedicated Linux checkout,
+NumPy virtual environment, and cache. `scripts/crontab.example` uses `flock` and
+checks the feed twice each evening in India; only a changed payload is committed
+and pushed. The Git remote must already be able to push non-interactively,
+normally through an SSH key.
 
 ## Related Tooling
 
