@@ -175,7 +175,7 @@ body[data-view="drivers"] .grid{grid-template-columns:1fr}
   gap:10px;
   line-height:1.1;
 }
-.swatch{display:block;width:150px;height:10px;border:1px solid rgba(0,0,0,.14);background:linear-gradient(90deg,#f0e7b4,#87c8b5,#2c91b2,#3158a1,#3b1b5a)}
+.swatch{display:block;width:150px;height:10px;border:1px solid rgba(0,0,0,.14);background:linear-gradient(90deg,#fff 0%,#d7ccc9 8%,#af9994 16%,#85635c 24%,#a28867 32%,#ccbe7d 40%,#fdff99 50%,#99eb85 60%,#31d670 70%,#00b2b2 80%,#1276dc 90%,#333399 100%)}
 .tooltip{
   position:absolute;
   pointer-events:none;
@@ -1577,6 +1577,22 @@ body[data-view="extremes"] .region-toolbar{display:none}
     return `${fmt(value, digits)}${unit}`;
   }
 
+  // Matplotlib terrain_r, sampled at fixed intervals. Absolute rainfall only.
+  const TERRAIN_R_STOPS = [
+    [0,"#ffffff"],
+    [.08,"#d7ccc9"],
+    [.16,"#af9994"],
+    [.24,"#85635c"],
+    [.32,"#a28867"],
+    [.4,"#ccbe7d"],
+    [.5,"#fdff99"],
+    [.6,"#99eb85"],
+    [.7,"#31d670"],
+    [.8,"#00b2b2"],
+    [.9,"#1276dc"],
+    [1,"#333399"],
+  ];
+
   function colourStops(context, values) {
     if (context.display === "percentAnomaly") {
       const fallback = context.period === "daily" ? 1000 : context.period === "composite" ? 250 : context.period === "monthly" ? 300 : 400;
@@ -1593,7 +1609,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
     }
     const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
     const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? (monthCount > 1 ? 1400 * monthCount : 1800) : context.period === "composite" ? 80 : 300;
-    return {min:0, max, stops:[[0,"#f0e7b4"],[0.18,"#b9d9a2"],[0.36,"#5fb8b4"],[0.58,"#2c91b2"],[0.78,"#3158a1"],[1,"#3b1b5a"]], minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
+    return {min:0, max, stops:TERRAIN_R_STOPS, minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
   }
 
   function hexToRgb(hex) {
@@ -1822,7 +1838,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
     document.getElementById("legendMin").textContent = scale.minLabel;
     document.getElementById("legendMax").textContent = scale.maxLabel;
-    document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(stop => stop[1]).join(",")})`;
+    document.getElementById("legendSwatch").style.background = `linear-gradient(90deg, ${scale.stops.map(([position, stopColour]) => `${stopColour} ${position * 100}%`).join(",")})`;
     const anomalyDescriptor = context.display === "percentAnomaly" ? "Percentage anomaly" : "Anomaly";
     const descriptor = context.view === "recent"
       ? isRecentDaily(context.item)
