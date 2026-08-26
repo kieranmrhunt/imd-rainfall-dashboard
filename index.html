@@ -631,9 +631,62 @@ body[data-view="extremes"] .region-toolbar{display:none}
 <script src="assets/india_adm0_simplified.js?v=20260707-daily-maps"></script>
 <script src="assets/india_adm1_simplified.js?v=20260707-daily-maps"></script>
 <script>
-(() => {
+(async () => {
+  const bundledRecent = window.IMD_RECENT_RAINFALL;
+  const recentFeeds = [
+    {label:"JASMIN", url:"https://gws-access.jasmin.ac.uk/public/incompass/kieran/imd-rainfall/latest.json"},
+    {label:"Reading", url:"https://www.met.reading.ac.uk/~rz908899/imd-rainfall/latest.php"},
+  ];
+
+  function validRecentPayload(payload) {
+    return Boolean(
+      payload?.meta?.latestAvailableDate
+      && payload?.meta?.generated
+      && Array.isArray(payload.daily)
+      && payload.daily.length
+      && Array.isArray(payload.periods)
+      && payload.periods.length
+    );
+  }
+
+  function recentTimestamp(payload) {
+    const latest = Date.parse(`${payload?.meta?.latestAvailableDate || "1970-01-01"}T00:00:00Z`);
+    const generated = Date.parse(payload?.meta?.generated || "1970-01-01T00:00:00Z");
+    return [Number.isFinite(latest) ? latest : 0, Number.isFinite(generated) ? generated : 0];
+  }
+
+  async function fetchRecentFeed(feed) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+    try {
+      const response = await fetch(feed.url, {cache:"no-store", signal:controller.signal});
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const payload = await response.json();
+      if (!validRecentPayload(payload)) throw new Error("invalid recent-rainfall payload");
+      return {feed, payload};
+    } catch (feedError) {
+      console.warn(`Could not load the ${feed.label} recent-rainfall feed:`, feedError);
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  const candidates = (await Promise.all(recentFeeds.map(fetchRecentFeed))).filter(Boolean);
+  if (validRecentPayload(bundledRecent)) {
+    candidates.push({feed:{label:"bundled fallback", url:"data/recent_data.js"}, payload:bundledRecent});
+  }
+  candidates.sort((left, right) => {
+    const a = recentTimestamp(left.payload);
+    const b = recentTimestamp(right.payload);
+    return b[0] - a[0] || b[1] - a[1];
+  });
+  const selectedRecent = candidates[0] || null;
+  window.IMD_RECENT_FEED = selectedRecent?.feed || null;
+  document.documentElement.dataset.recentFeed = selectedRecent?.feed?.label || "unavailable";
+
   const data = window.IMD_RAINFALL_DATA;
-  const recent = window.IMD_RECENT_RAINFALL;
+  const recent = selectedRecent?.payload || null;
   const climate = window.IMD_CLIMATE_INDICES;
   const boundary = window.INDIA_BOUNDARY;
   const stateBoundary = window.INDIA_STATE_BOUNDARIES;
@@ -1972,7 +2025,8 @@ body[data-view="extremes"] .region-toolbar{display:none}
     const latest = dateLabel(recent.meta.latestAvailableDate, {day:"numeric", month:"short", year:"numeric"});
     document.getElementById("recentStatus").textContent = `${region.name}; latest available grid ${latest}. Select any date or anomaly window to update the map.`;
     document.getElementById("recentFreshness").textContent = `Through ${latest}`;
-    document.getElementById("recentMethod").textContent = `${recent.meta.normalMethod}. Current-month values are month-to-date; missing source days are reported rather than treated as zero. Updated ${dateLabel(recent.meta.generated.slice(0, 10))}.`;
+    const feedLabel = window.IMD_RECENT_FEED?.label || "bundled fallback";
+    document.getElementById("recentMethod").textContent = `${recent.meta.normalMethod}. Current-month values are month-to-date; missing source days are reported rather than treated as zero. Updated ${dateLabel(recent.meta.generated.slice(0, 10))} via ${feedLabel}.`;
 
     recentDailyList.innerHTML = recent.daily.map(item => {
       const selected = item.id === selectedRecentId;

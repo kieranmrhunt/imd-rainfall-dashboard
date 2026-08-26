@@ -1,7 +1,6 @@
 SHELL=/bin/bash
 PATH=/usr/local/bin:/usr/bin:/bin
-CRON_TZ=Asia/Kolkata
+CRON_TZ=UTC
 
-# Try once in the early evening and again after the usual daily-data window.
-# The updater exits without a commit when the official IMD feed has not changed.
-30 18,21 * * * /usr/bin/flock -n "$HOME/mitre/imd-rainfall-dashboard/recent-update.lock" /usr/bin/env IMD_RECENT_HOME="$HOME/mitre/imd-rainfall-dashboard" IMD_RECENT_RUNTIME_ROOT="$HOME/mitre/imd-rainfall-dashboard/runtime" "$HOME/mitre/imd-rainfall-dashboard/repo/scripts/run_recent_update.sh" >> "$HOME/mitre/imd-rainfall-dashboard/logs/recent-update.log" 2>&1
+# One daily update after the usual IMD daily-data publication window.
+30 17 * * * /usr/bin/flock -n "$HOME/mitre/imd-rainfall-dashboard/recent-update.lock" "$HOME/mitre/imd-rainfall-dashboard/repo/scripts/run_recent_update.sh" >> "$HOME/mitre/imd-rainfall-dashboard/logs/recent-update.log" 2>&1

@@ -1,42 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-REPO_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
-RUNTIME_ROOT="${IMD_RECENT_RUNTIME_ROOT:-$REPO_DIR/runtime}"
+ROOT="${IMD_RECENT_HOME:-$HOME/mitre/imd-rainfall-dashboard}"
+REPO_DIR="${IMD_REPO_DIR:-$ROOT/repo}"
+RUNTIME_ROOT="${IMD_RECENT_RUNTIME_ROOT:-$ROOT/runtime}"
+STATE_DIR="${IMD_RECENT_STATE_DIR:-$ROOT/state}"
+PUBLISH_DIR="${IMD_PUBLISH_DIR:-/storage/silver/metweb/$USER/public_html/imd-rainfall}"
 PYTHON_BIN="${PYTHON_BIN:-python3}"
 
-if [[ -x "${IMD_RECENT_HOME:-}/venv/bin/python" ]]; then
-  PYTHON_BIN="${IMD_RECENT_HOME}/venv/bin/python"
+if [[ -x "$ROOT/venv/bin/python" ]] && "$ROOT/venv/bin/python" -c 'import numpy' >/dev/null 2>&1; then
+  PYTHON_BIN="$ROOT/venv/bin/python"
 fi
-
-cd "$REPO_DIR"
-if [[ ! -d .git ]]; then
-  echo "error: $REPO_DIR is not a Git checkout; run bootstrap_recent_updater.sh first" >&2
+if ! "$PYTHON_BIN" -c 'import numpy' >/dev/null 2>&1; then
+  echo "error: $PYTHON_BIN cannot import NumPy" >&2
+  exit 2
+fi
+if [[ ! -f "$REPO_DIR/scripts/update_recent_rainfall.py" ]]; then
+  echo "error: updater not found under $REPO_DIR" >&2
   exit 2
 fi
 
-git pull --rebase origin main
+mkdir -p "$RUNTIME_ROOT/realtime" "$RUNTIME_ROOT/climatology" "$STATE_DIR" "$PUBLISH_DIR"
+cd "$REPO_DIR"
 
 "$PYTHON_BIN" scripts/update_recent_rainfall.py \
   --cache-dir "$RUNTIME_ROOT/realtime" \
   --climatology-dir "$RUNTIME_ROOT/climatology" \
-  --output data/recent_data.js \
-  --manifest data/recent_manifest.json
+  --output "$STATE_DIR/recent_data.js" \
+  --json-output "$PUBLISH_DIR/latest.json" \
+  --manifest "$STATE_DIR/recent_manifest.json"
 
-if git diff --quiet -- data/recent_data.js data/recent_manifest.json; then
-  echo "recent rainfall is already current"
-  exit 0
-fi
-
-git add data/recent_data.js data/recent_manifest.json
-if git diff --cached --quiet; then
-  echo "recent rainfall is already current"
-  exit 0
-fi
-
-LATEST="$("$PYTHON_BIN" -c 'import json; print(json.load(open("data/recent_manifest.json", encoding="utf-8"))["latestAvailableDate"])')"
-git -c user.name="${GIT_AUTHOR_NAME:-IMD rainfall updater}" \
-  -c user.email="${GIT_AUTHOR_EMAIL:-kieranmrhunt@users.noreply.github.com}" \
-  commit -m "data: update recent IMD rainfall through $LATEST"
-git push origin HEAD:main
+chmod 0644 "$PUBLISH_DIR/latest.json"

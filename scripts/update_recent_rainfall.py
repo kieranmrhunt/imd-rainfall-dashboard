@@ -2,7 +2,7 @@
 
 The script downloads official IMD real-time 0.25 degree daily grids, matches
 them to exact 1991-2020 calendar-day normals from the bundled historical map
-assets, and writes a browser-ready JavaScript payload.
+assets, and writes browser-ready JavaScript and/or JSON payloads.
 """
 
 from __future__ import annotations
@@ -96,6 +96,11 @@ def parse_args() -> argparse.Namespace:
         type=Path,
         default=Path("data/recent_data.js"),
         help="Browser-ready output JavaScript.",
+    )
+    parser.add_argument(
+        "--json-output",
+        type=Path,
+        help="Optional plain-JSON output for a live cross-origin data feed.",
     )
     parser.add_argument(
         "--manifest",
@@ -788,7 +793,12 @@ def build_payload(args: argparse.Namespace) -> tuple[dict, dict]:
 def main() -> None:
     args = parse_args()
     payload, manifest = build_payload(args)
-    if args.output.exists() and args.manifest.exists():
+    outputs_exist = (
+        args.output.exists()
+        and args.manifest.exists()
+        and (args.json_output is None or args.json_output.exists())
+    )
+    if outputs_exist:
         try:
             previous_manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
@@ -804,12 +814,17 @@ def main() -> None:
         + json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
         + ";\n"
     )
+    json_payload = json.dumps(payload, ensure_ascii=True, separators=(",", ":")) + "\n"
     atomic_write_text(args.output, javascript)
+    if args.json_output is not None:
+        atomic_write_text(args.json_output, json_payload)
     atomic_write_text(args.manifest, json.dumps(manifest, indent=2) + "\n")
     latest = payload["meta"]["latestAvailableDate"]
     missing = len(payload["availability"]["missingDates"])
     print(
-        f"wrote {args.output} ({len(javascript):,} bytes); "
+        f"wrote {args.output} ({len(javascript):,} bytes)"
+        + (f" and {args.json_output} ({len(json_payload):,} bytes)" if args.json_output else "")
+        + "; "
         f"latest {latest}; {missing} missing requested dates"
     )
 

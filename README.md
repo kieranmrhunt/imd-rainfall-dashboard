@@ -9,7 +9,8 @@ This folder contains a local dashboard built from the India Meteorological Depar
 - `data/dashboard_data.js` - compact browser-ready data for maps, charts, state
   filters, monthly gridded anomalies, and event rankings.
 - `data/recent_data.js` - compact rolling payload for the ten latest available
-  daily grids and recent weekly/monthly anomalies.
+  daily grids and recent weekly/monthly anomalies; this committed copy is the
+  browser's offline fallback.
 - `data/recent_manifest.json` - latest source date, recent period coverage, and
   a stable content checksum for scheduled updates.
 - `data/annual_summary.csv` - all-India annual and JJAS summary metrics.
@@ -84,13 +85,23 @@ The updater caches the 1991-2020 daily map assets and real-time IMD grids under
 `runtime/`, writes outputs atomically, and leaves the published files untouched
 when the underlying data have not changed.
 
-## Scheduled Recent Updates
+## Live Recent Updates
 
-`scripts/bootstrap_recent_updater.sh` prepares a dedicated Linux checkout,
-NumPy virtual environment, and cache. `scripts/crontab.example` uses `flock` and
-checks the feed twice each evening in India; only a changed payload is committed
-and pushed. The Git remote must already be able to push non-interactively,
-normally through an SSH key.
+The GitHub Pages UI is static. At startup it selects the freshest valid recent
+payload from these live JSON mirrors, falling back to the committed
+`data/recent_data.js` if neither mirror is reachable:
+
+- JASMIN: `https://gws-access.jasmin.ac.uk/public/incompass/kieran/imd-rainfall/latest.json`
+- Reading: `https://www.met.reading.ac.uk/~rz908899/imd-rainfall/latest.php`
+
+`scripts/bootstrap_recent_updater.sh` prepares the dedicated Linux checkout and
+cache in MITRE storage (the host Python must provide NumPy). `scripts/crontab.example` runs
+the updater once daily at 17:30 UTC with `flock`. The updater writes the Reading
+JSON feed atomically and does not commit or push generated data to GitHub.
+
+The Reading PHP wrapper is in `deploy/latest.php`. JASMIN's transfer-host cron
+uses `deploy/pull_imd_rainfall_from_reading.sh` to validate and atomically mirror
+that JSON file.
 
 ## Related Tooling
 

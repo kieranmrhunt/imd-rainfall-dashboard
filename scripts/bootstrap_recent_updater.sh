@@ -24,9 +24,9 @@ if [[ -d "$SEED_RUNTIME/climatology" ]]; then
   cp -an "$SEED_RUNTIME/climatology/." "$RUNTIME/climatology/"
 fi
 
-if [[ ! -x "$ROOT/venv/bin/python" ]]; then
-  python3 -m venv "$ROOT/venv"
-  "$ROOT/venv/bin/python" -m pip install --upgrade pip numpy
+if ! python3 -c 'import numpy' >/dev/null 2>&1; then
+  echo "error: system Python cannot import NumPy" >&2
+  exit 2
 fi
 
 chmod +x "$REPO/scripts/run_recent_update.sh"
@@ -35,7 +35,7 @@ IMD_RECENT_RUNTIME_ROOT="$RUNTIME" \
   "$REPO/scripts/run_recent_update.sh"
 
 cat <<EOF
-Recent rainfall updater is ready in:
+Live recent-rainfall updater is ready in:
   $ROOT
 
 Review $REPO/scripts/crontab.example, then install it with:
