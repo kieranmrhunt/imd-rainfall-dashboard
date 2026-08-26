@@ -585,7 +585,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
         <section class="recent-section" aria-labelledby="recentDailyTitle">
           <div class="recent-section-head">
             <h3 class="recent-section-title" id="recentDailyTitle">Daily rainfall</h3>
-            <span class="recent-section-note">0-300 mm scale</span>
+            <span class="recent-section-note">0-200 mm scale</span>
           </div>
           <div class="recent-daily-list" id="recentDailyList" aria-label="Ten latest available rainfall days"></div>
         </section>
@@ -1608,7 +1608,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
       return {min:-limit, max:limit, stops:[[0,"#a87545"],[0.44,"#eadbc1"],[0.5,"#fffaf3"],[0.56,"#dceeea"],[1,"#267f86"]], minLabel:`-${scaleLabel(limit, " mm")}`, maxLabel:`+${scaleLabel(limit, " mm")}`, unit:"mm"};
     }
     const monthCount = context.period === "monthly" ? monthGroup(context.monthGroup || context.month).months.length : 1;
-    const max = context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? (monthCount > 1 ? 1400 * monthCount : 1800) : context.period === "composite" ? 80 : 300;
+    const max = context.view === "recent" && context.period === "daily" ? 200 : context.period === "annual" ? 7000 : context.period === "jjas" ? 5000 : context.period === "monthly" ? (monthCount > 1 ? 1400 * monthCount : 1800) : context.period === "composite" ? 80 : 300;
     return {min:0, max, stops:TERRAIN_R_STOPS, minLabel:"0 mm", maxLabel:`${max} mm`, unit:"mm"};
   }
 
@@ -1704,7 +1704,7 @@ body[data-view="extremes"] .region-toolbar{display:none}
 
     const map = recentMapData(item);
     const scale = colourStops(
-      {display:map.display, period:isRecentDaily(item) ? "daily" : "recent"},
+      {view:"recent", display:map.display, period:isRecentDaily(item) ? "daily" : "recent"},
       map.values,
     );
     const project = projector(rect.width, rect.height);
